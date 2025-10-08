@@ -27,9 +27,11 @@ This project is managed with `uv`, a fast Python package installer and resolver.
 	uv run python -m pip install -e .
 	```
 	
-	or
+	or if you are using `venv` the process can be done with:
 	
 	```
+	python -m venv .venv
+	source activate .venv/bin/activate
 	python -m pip install -e .
 	```
 	
@@ -41,6 +43,8 @@ This project is managed with `uv`, a fast Python package installer and resolver.
 The main command is `wellshuffled`. It takes a required input file of sample IDs and an output path.
 
 ### Basic Command
+
+The following assumes use with `uv`. If running without `uv`, simply omit the `uv run` part of the command.
 
 ```
 uv run wellshuffled <sample_file> <output_path> [OPTIONS]
