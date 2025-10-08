@@ -18,6 +18,21 @@ This project is managed with `uv`, a fast Python package installer and resolver.
     ```
     uv sync
     ```
+	
+3. **Installing without `uv sync`**
+
+	If `uv` has errors during sync you can install manually with `pip`:
+
+	```
+	uv run python -m pip install -e .
+	```
+	
+	or
+	
+	```
+	python -m pip install -e .
+	```
+	
 
 -----
 
@@ -59,13 +74,13 @@ uv run wellshuffled samples.csv my_layouts --plates 3 --separate-files
 Running this command multiple times with `--seed 123` will always produce the exact same output file.
 
 ```
-uv run wellshuffled samples.txt reproducible_run.csv --plates 4 --seed 123
+uv run wellshuffled samples.csv reproducible_run.csv --plates 4 --seed 123
 ```
 
 **5. Use the simple randomization logic (disabling neighbor-awareness):**
 
 ```
-uv run wellshuffled samples.txt simple_run.csv --simple
+uv run wellshuffled samples.csv simple_run.csv --simple
 ```
 
 **6. View all available options and help:**
