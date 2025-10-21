@@ -1,24 +1,44 @@
 """Script for generating randomized plates for 96 or 384-well configurations."""
 
 import random
+from abc import ABC, abstractmethod
 
 import numpy as np
 
 
-class PlateMapperSimple:
-    """Generates and manages randomized plate maps for plate dimensions w/o neighbor-awareness."""
+class BasePlateMapper(ABC):
+    """Base class for shared PlateMapper functionality."""
 
-    def __init__(self, sample_ids: list[str], plate_size: int = 384):
+    def __init__(self, sample_ids: list[str], control_sample_ids: list[str], plate_size: int = 96):
         if plate_size not in [96, 384]:
             raise ValueError("Plate size unknown, must be 96 or 384.")
 
-        self.all_samples = list(sample_ids)
+        self.samples = list(sample_ids)
+        self.control_samples = list(control_sample_ids)
+        self.all_samples = self.samples + self.control_samples
+
         self.plate_size = plate_size
         self.plate_dims = (16, 24) if plate_size == 384 else (8, 12)
+
+        self.fixed_control_map: dict[tuple[int, int], str] = {}
+        self.is_control_map_fixed = False
+
+        rows, cols = self.plate_dims
+        all_indices = rows * cols
+
+        if len(self.all_samples) > all_indices:
+            raise ValueError(
+                f"Total Samples ({len(self.all_samples)}) exceeds wells ({all_indices})."
+            )
 
         # Track state of edge samples, and sample neighbors
         self.used_edge_samples: set[str] = set()
         self.multi_edge_samples: list[list[str]] = []
+
+    @abstractmethod  # Enforces that this method must be implemented by subclasses
+    def generate_plate(self) -> np.ndarray:
+        """Abstract method to generate a single plate map. Must be implemented by subclasses."""
+        pass
 
     def _get_perimeter_indices(self) -> tuple[list[tuple], list[tuple]]:
         """Calculate the (row, col) indices for perimeter and interior well positions."""
@@ -35,57 +55,9 @@ class PlateMapperSimple:
 
         return perimeter_indices, interior_indices
 
-    def generate_plate(self) -> np.ndarray:
-        """Generate a single randomized plate map."""
-        plate = np.full(self.plate_dims, None, dtype=object)
-        perimeter_indices, interior_indices = self._get_perimeter_indices()
-        num_perimeter_wells = len(perimeter_indices)
-
-        # Find samples that have not been used on the edge yet.
-        available_edge_samples = [s for s in self.all_samples if s not in self.used_edge_samples]
-        random.shuffle(available_edge_samples)
-
-        # Find samples that have already been used on an edge.
-        recycled_edge_samples = list(self.used_edge_samples)
-        random.shuffle(recycled_edge_samples)
-
-        # Select samples for the edge
-        edge_placements = available_edge_samples[:num_perimeter_wells]
-
-        # If not enough fresh samples, supplement with already-used ones but keep track
-        if len(edge_placements) < num_perimeter_wells:
-            needed = num_perimeter_wells - len(edge_placements)
-            edge_placements.extend(recycled_edge_samples[:needed])
-            self.multi_edge_samples.append(recycled_edge_samples[:needed])
-
-        # Populate the new plate
-
-        samples_to_place = list(self.all_samples)
-        random.shuffle(samples_to_place)
-
-        temp_edge_placements = list(edge_placements)
-        random.shuffle(temp_edge_placements)
-
-        # Handle perimeter samples
-        for r, c in perimeter_indices:
-            sample = temp_edge_placements.pop()
-            plate[r, c] = sample
-            self.used_edge_samples.add(sample)  # Update the state of the used samples
-            # Ensure we don't duplicate samples on the same plate
-            if sample in samples_to_place:
-                samples_to_place.remove(sample)
-
-        # Handle interior samples
-        for r, c in interior_indices:
-            if not samples_to_place:
-                break  # No more samples
-            plate[r, c] = samples_to_place.pop()
-
-        return plate
-
     def generate_multiple_plates(self, num_plates: int) -> list[np.ndarray]:
         """Generate a specified number of unique plate layouts."""
-        return [self.generate_plate() for _ in range(num_plates)]
+        return [self.generate_plate() for _ in range(num_plates)]  # TODO: Fix this line
 
     @staticmethod
     def save_plate_to_csv(plate_data: np.ndarray, filename: str):
@@ -94,20 +66,129 @@ class PlateMapperSimple:
         print(f"Plate map successfully saved to {filename}")
 
 
-class PlateMapperNeighborAware:
+class PlateMapperSimple(BasePlateMapper):
+    """Generates and manages randomized plate maps for plate dimensions w/o neighbor-awareness."""
+
+    def generate_plate(self) -> np.ndarray:
+        """Generate a single randomized plate map."""
+        plate = np.full(self.plate_dims, None, dtype=object)
+
+        if self.is_control_map_fixed:
+            # Place in the controls first!
+            for (r, c), sample in self.fixed_control_map.items():
+                plate[r, c] = sample
+
+            available_indices = {
+                (r, c) for r in range(self.plate_dims[0]) for c in range(self.plate_dims[1])
+            }
+            fixed_indices = set(self.fixed_control_map.keys())
+            variable_indices = list(available_indices - fixed_indices)
+
+            all_perimeter, all_interior = self._get_perimeter_indices()
+            perimeter_indices = [idx for idx in all_perimeter if idx in variable_indices]
+            interior_indices = [idx for idx in all_interior if idx in variable_indices]
+
+            samples_to_randomize = list(self.samples)
+
+        else:
+            all_indices = [
+                (r, c) for r in range(self.plate_dims[0]) for c in range(self.plate_dims[1])
+            ]
+            random.shuffle(all_indices)
+
+            all_perimeter, all_interior = self._get_perimeter_indices()
+            perimeter_indices = [idx for idx in all_perimeter if idx in all_indices]
+            interior_indices = [idx for idx in all_interior if idx in all_indices]
+
+            # All samples (variable + control) are candidates for randomization
+            samples_to_randomize = list(self.all_samples)
+
+        num_perimeter_wells = len(perimeter_indices)
+
+        # Find samples that have not been used on the edge yet.
+        samples_for_edge = [s for s in samples_to_randomize if s in self.samples]
+
+        available_edge_samples = [s for s in samples_for_edge if s not in self.used_edge_samples]
+        random.shuffle(available_edge_samples)
+
+        # Find samples that have already been used on an edge.
+        recycled_edge_samples = list(self.used_edge_samples)
+        random.shuffle(recycled_edge_samples)
+
+        if not self.is_control_map_fixed:
+            random.shuffle(samples_to_randomize)
+
+            edge_placements = samples_to_randomize[:num_perimeter_wells]
+            samples_to_place = samples_to_randomize[num_perimeter_wells:]
+
+        else:
+            # Select samples for the edge
+            edge_placements = available_edge_samples[:num_perimeter_wells]
+
+            # If not enough fresh samples, supplement with already-used ones but keep track
+            if len(edge_placements) < num_perimeter_wells:
+                needed = num_perimeter_wells - len(edge_placements)
+                edge_placements.extend(recycled_edge_samples[:needed])
+                self.multi_edge_samples.append(recycled_edge_samples[:needed])
+
+            # Populate the new plate
+
+            samples_to_place = list(self.samples)
+
+            # Remove all edge-assigned samples from the interior pool (PRE-EMPTIVE REMOVAL)
+            for sample in edge_placements:
+                if sample in samples_to_place:
+                    samples_to_place.remove(sample)
+
+        random.shuffle(samples_to_place)
+
+        temp_edge_placements = list(edge_placements)
+        random.shuffle(temp_edge_placements)
+
+        perimeter_indices_to_use = perimeter_indices
+        if self.is_control_map_fixed:
+            perimeter_indices_to_use = [
+                idx for idx in perimeter_indices if idx not in self.fixed_control_map
+            ]
+
+        for r, c in perimeter_indices_to_use:
+            if not temp_edge_placements:
+                break
+
+            sample = temp_edge_placements.pop()
+            plate[r, c] = sample
+
+            if sample in self.samples:
+                self.used_edge_samples.add(sample)
+
+        interior_indices_to_use = interior_indices
+        if self.is_control_map_fixed:
+            interior_indices_to_use = [
+                idx for idx in interior_indices if idx not in self.fixed_control_map
+            ]
+
+        for r, c in interior_indices_to_use:
+            if not samples_to_place:
+                break
+            plate[r, c] = samples_to_place.pop()
+
+        # Fix the control map
+        if not self.is_control_map_fixed:
+            for r in range(self.plate_dims[0]):
+                for c in range(self.plate_dims[1]):
+                    sample = plate[r, c]
+                    if sample in self.control_samples:
+                        self.fixed_control_map[(r, c)] = sample
+            self.is_control_map_fixed = True
+
+        return plate
+
+
+class PlateMapperNeighborAware(BasePlateMapper):
     """Generate Plate maps with neighbor-awareness to minimize re-neighboring."""
 
-    def __init__(self, sample_ids: list[str], plate_size: int = 384):
-        if plate_size not in [96, 384]:
-            raise ValueError("Plate size unknown, must be 96 or 384.")
-
-        self.all_samples = list(sample_ids)
-        self.plate_size = plate_size
-        self.plate_dims = (16, 24) if plate_size == 384 else (8, 12)
-
-        # Track state of edge samples, and sample neighbors
-        self.used_edge_samples: set[str] = set()
-        self.multi_edge_samples: list[list[str]] = []
+    def __init__(self, sample_ids: list[str], control_sample_ids: list[str], plate_size: int = 384):
+        super().__init__(sample_ids, control_sample_ids, plate_size)
         self.neighbor_pairs: set[tuple[str, str]] = set()
 
     def _get_neighbors(self, r: int, c: int, plate: np.ndarray) -> list[str]:
@@ -146,15 +227,30 @@ class PlateMapperNeighborAware:
         """Generate a single plate using a constrained randomization approach."""
         plate = np.full(self.plate_dims, None, dtype=object)
 
-        samples_to_place = list(self.all_samples)
-        random.shuffle(samples_to_place)
+        if self.is_control_map_fixed:
+            # Place controls first
+            for (r, c), sample in self.fixed_control_map.items():
+                plate[r, c] = sample
 
-        all_indices = [(r, c) for r in range(self.plate_dims[0]) for c in range(self.plate_dims[1])]
-        random.shuffle(all_indices)
+            available_indices = {
+                (r, c) for r in range(self.plate_dims[0]) for c in range(self.plate_dims[1])
+            }
+            fixed_indices = set(self.fixed_control_map.keys())
+            variable_indices = list(available_indices - fixed_indices)
+            random.shuffle(variable_indices)
+            samples_to_place = list(self.samples)
+
+        else:
+            variable_indices = [
+                (r, c) for r in range(self.plate_dims[0]) for c in range(self.plate_dims[1])
+            ]
+            random.shuffle(variable_indices)
+
+            samples_to_place = list(self.all_samples)
 
         recycled_on_this_plate = []
 
-        for r, c in all_indices:
+        for r, c in variable_indices:
             is_edge = r == 0 or r == self.plate_dims[0] - 1 or c == 0 or c == self.plate_dims[1] - 1
             # Find best suitable sample for current well
             best_candidate = None
@@ -201,6 +297,13 @@ class PlateMapperNeighborAware:
         if recycled_on_this_plate:
             self.multi_edge_samples.append(recycled_on_this_plate)
 
+        if not self.is_control_map_fixed:
+            for r in range(self.plate_dims[0]):
+                for c in range(self.plate_dims[1]):
+                    sample = plate[r, c]
+                    if sample in self.control_samples:
+                        self.fixed_control_map[(r, c)] = sample
+
         # We should now update all the neighbor pairs
         self._update_neighbor_state(plate)
         return plate
@@ -216,13 +319,23 @@ class PlateMapperNeighborAware:
         print(f"Plate map successfully saved to {filename}")
 
 
-def load_sample_ids(filename: str) -> list[str]:
+def load_sample_ids(filename: str, control_prefix: str = None) -> tuple[list[str], list[str]]:
     """Load in a list of file names from csv file."""
-    data = []
+    all_samples = []
+    control_samples = []
+
     with open(filename, "r", newline="") as csv_file:
         for row in csv_file:
-            data.append(row.strip())
-    return data
+            sample_id = row.strip()
+            if not sample_id:
+                continue
+
+            if control_prefix and sample_id.startswith(control_prefix):
+                control_samples.append(sample_id)
+            else:
+                all_samples.append(sample_id)
+
+    return all_samples, control_samples
 
 
 def save_plate_to_csv(plate_data: np.ndarray, filename: str):
