@@ -38,7 +38,12 @@ from wellshuffled.plate_generator import (
 @click.option(
     "--seed", type=int, default=None, help="Set the random seed for reproducible results."
 )
-def main(sample_file, output_path, plates, size, simple, separate_files, seed):
+@click.option(
+    "--control-prefix",
+    default=None,
+    help="Prefix used to identify control/blank samples in SAMPLE_FILE (e.g., 'B', 'CTRL')."
+)
+def main(sample_file, output_path, plates, size, simple, separate_files, seed, control_prefix):
     """
     Generate randomized plate maps from a list of SAMPLE_IDs.
 
@@ -55,16 +60,21 @@ def main(sample_file, output_path, plates, size, simple, separate_files, seed):
     plate_size = int(size)
 
     # Load samples
-    samples = load_sample_ids(sample_file)
-    click.echo(f"Loaded {len(samples)} unique samples from {os.path.basename(sample_file)}.")
+    samples, control_samples = load_sample_ids(sample_file, control_prefix=control_prefix)
+
+    total_samples = len(samples) + len(control_samples)
+    click.echo(f"Loaded {total_samples} total samples from {os.path.basename(sample_file)}.")
+    click.echo(f"  - {len(samples)} variable samples to randomize.")
+    if control_prefix:
+        click.echo(f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}').")
 
     # Choose the correct mapper class
     if simple:
         click.echo("Using simple randomization logic.")
-        mapper = PlateMapperSimple(samples, plate_size=plate_size)
+        mapper = PlateMapperSimple(samples, control_samples, plate_size=plate_size)
     else:
         click.echo("Using neighbor-aware randomization logic.")
-        mapper = PlateMapperNeighborAware(samples, plate_size=plate_size)
+        mapper = PlateMapperNeighborAware(samples, control_samples, plate_size=plate_size)
 
     # Generate plates
     click.echo(f"Generating {plates} plate(s) of size {plate_size}...")
