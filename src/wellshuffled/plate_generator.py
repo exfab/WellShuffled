@@ -226,18 +226,21 @@ class PlateMapperNeighborAware(BasePlateMapper):
     def generate_plate(self) -> np.ndarray:
         """Generate a single plate using a constrained randomization approach."""
         plate = np.full(self.plate_dims, None, dtype=object)
+        recycled_on_this_plate = []
 
         if self.is_control_map_fixed:
             # Place controls first
             for (r, c), sample in self.fixed_control_map.items():
                 plate[r, c] = sample
 
-            available_indices = {
+            all_indices = {
                 (r, c) for r in range(self.plate_dims[0]) for c in range(self.plate_dims[1])
             }
             fixed_indices = set(self.fixed_control_map.keys())
-            variable_indices = list(available_indices - fixed_indices)
+
+            variable_indices = list(all_indices - fixed_indices)
             random.shuffle(variable_indices)
+
             samples_to_place = list(self.samples)
 
         else:
@@ -248,13 +251,15 @@ class PlateMapperNeighborAware(BasePlateMapper):
 
             samples_to_place = list(self.all_samples)
 
-        recycled_on_this_plate = []
-
         for r, c in variable_indices:
             is_edge = r == 0 or r == self.plate_dims[0] - 1 or c == 0 or c == self.plate_dims[1] - 1
             # Find best suitable sample for current well
             best_candidate = None
-            for candidate_sample in samples_to_place:
+
+            candidates = list(samples_to_place)
+            random.shuffle(candidates)
+
+            for candidate_sample in candidates:
                 # Check Neighbors
                 neighbors = self._get_neighbors(r, c, plate)
                 has_bad_neighbor = False
@@ -267,8 +272,14 @@ class PlateMapperNeighborAware(BasePlateMapper):
                 if has_bad_neighbor:
                     continue
 
+                is_variable_sample = candidate_sample in self.samples
+
                 # Check if it has been used on an edge
-                if is_edge and candidate_sample not in self.used_edge_samples:
+                if (
+                    is_edge
+                    and is_variable_sample
+                    and candidate_sample not in self.used_edge_samples
+                ):
                     best_candidate = candidate_sample
                     break  # Use this one
 
@@ -289,7 +300,7 @@ class PlateMapperNeighborAware(BasePlateMapper):
             # After all that checking, we place the sample...
             plate[r, c] = best_candidate
             samples_to_place.remove(best_candidate)
-            if is_edge:
+            if is_edge and best_candidate in self.samples:
                 if best_candidate in self.used_edge_samples:
                     recycled_on_this_plate.append(best_candidate)
                 self.used_edge_samples.add(best_candidate)
@@ -297,12 +308,15 @@ class PlateMapperNeighborAware(BasePlateMapper):
         if recycled_on_this_plate:
             self.multi_edge_samples.append(recycled_on_this_plate)
 
+        # Fix up the control map if not done so already.
         if not self.is_control_map_fixed:
             for r in range(self.plate_dims[0]):
                 for c in range(self.plate_dims[1]):
                     sample = plate[r, c]
                     if sample in self.control_samples:
                         self.fixed_control_map[(r, c)] = sample
+
+            self.is_control_map_fixed = True
 
         # We should now update all the neighbor pairs
         self._update_neighbor_state(plate)
