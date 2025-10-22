@@ -385,12 +385,62 @@ def well_to_index(well: str, plate_dims: tuple[int, int]) -> tuple[int, int]:
     # Validation
     if not (0 <= row_index < rows and 0 <= col_index < cols):
         max_row_letter = chr(ord("A") + rows - 1)
-        max_col_number = cols
         raise ValueError(
             f"Well {well} is outside plate dimensions ({rows}x{cols}). Max well is {max_row_letter}."
         )
 
     return row_index, col_index
+
+
+def load_control_map_from_csv(filename: str) -> dict[str, str]:
+    """
+    Load a control map from a two-column CSV file (Well, Sample ID).
+
+    :param filename: Path to the CSV file.
+    :return: A dictionary mapping well position string (e.g., 'A1') to sample ID.
+    """
+    import csv
+
+    # The map is temporarily stored as {Well: Sample ID} string-to-string
+    control_map = {}
+
+    with open(filename, "r", newline="") as csv_file:
+        # Use csv.reader to handle different delimiters/quoting if needed
+        reader = csv.reader(csv_file)
+
+        # Skip header row (assuming the first row is a header)
+        try:
+            next(reader)
+        except StopIteration:
+            # Handle empty file case, though the CLI should catch this
+            return {}
+
+        for i, row in enumerate(reader, start=2):
+            if not row:
+                continue
+
+            # Expecting exactly two columns: Well and Sample ID
+            if len(row) < 2:
+                raise ValueError(
+                    f"Fixed map file '{filename}' row {i} is missing data. Expected 'Well,Sample ID'."
+                )
+
+            well_pos = row[0].strip().upper()
+            sample_id = row[1].strip()
+
+            if not well_pos or not sample_id:
+                raise ValueError(
+                    f"Fixed map file '{filename}' row {i} contains empty well position or sample ID."
+                )
+
+            if well_pos in control_map:
+                raise ValueError(f"Well position '{well_pos}' is duplicated in the fixed map file.")
+
+            control_map[well_pos] = sample_id
+
+    # The returned dictionary is passed to the PlateMapper's __init__
+    # which will then convert the well strings (e.g., 'A1') into tuple indices (e.g., (0, 0)).
+    return control_map
 
 
 def load_sample_ids(

@@ -8,6 +8,7 @@ import click
 from wellshuffled.plate_generator import (
     PlateMapperNeighborAware,
     PlateMapperSimple,
+    load_control_map_from_csv,
     load_sample_ids,
     save_all_plates_to_single_csv,
     save_plate_to_csv,
@@ -42,6 +43,22 @@ def parse_fixed_map(ctx, param, value):
     except Exception as e:
         # Re-raise as a BadParameter for Click to handle gracefully
         raise click.BadParameter(f"Could not parse --fixed-map string: {e}") from None
+
+
+def parse_fixed_map_file(ctx, param, value):
+    """Callback to parse the --fixed-map-file path and load data."""
+    if not value:
+        return None
+
+    # We pass the file path to the utility function in plate_generator
+    try:
+        fixed_map = load_control_map_from_csv(value)
+        if not fixed_map:
+            raise click.BadParameter("Fixed map file is empty or contains no valid data.")
+        return fixed_map
+    except Exception as e:
+        # Catch any exceptions during file reading/parsing and report to the user
+        raise click.BadParameter(f"Error reading fixed map file '{value}': {e}") from e
 
 
 @click.command()
@@ -79,8 +96,23 @@ def parse_fixed_map(ctx, param, value):
     callback=parse_fixed_map,
     help="Manually specify fixed control locations (e.g., 'A1:control-85,H12:control-96'). Overrides Plate 1 randomization.",
 )
+@click.option(
+    "--fixed-map-file",
+    default=None,
+    callback=parse_fixed_map_file,
+    help="Manually specify fixed control locations from a csv file (e.g well_pos, sample_id). Overrides Plate 1 randomization.",
+)
 def main(
-    sample_file, output_path, plates, size, simple, separate_files, seed, control_prefix, fixed_map
+    sample_file,
+    output_path,
+    plates,
+    size,
+    simple,
+    separate_files,
+    seed,
+    control_prefix,
+    fixed_map,
+    fixed_map_file,
 ):
     """
     Generate randomized plate maps from a list of SAMPLE_IDs.
@@ -108,10 +140,14 @@ def main(
             f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}')."
         )
 
-    if fixed_map:
+    if fixed_map or fixed_map_file:
         click.echo(
             "Using MANUALLY DEFINED control map. Skipping Plate 1 randomization for controls."
         )
+
+    # TODO: [mcnaughtonadm|10212025] Clean this logic up, just a temporary fix to get it working. Logic should be a little more robust than this...
+    if fixed_map_file:
+        fixed_map = fixed_map_file
 
     # Choose the correct mapper class
     if simple:
