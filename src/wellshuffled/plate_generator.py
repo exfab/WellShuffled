@@ -9,7 +9,13 @@ import numpy as np
 class BasePlateMapper(ABC):
     """Base class for shared PlateMapper functionality."""
 
-    def __init__(self, sample_ids: list[str], control_sample_ids: list[str], plate_size: int = 96):
+    def __init__(
+        self,
+        sample_ids: list[str],
+        control_sample_ids: list[str],
+        plate_size: int = 96,
+        predefined_control_map: dict[str, str] | None = None,
+    ):
         if plate_size not in [96, 384]:
             raise ValueError("Plate size unknown, must be 96 or 384.")
 
@@ -34,6 +40,24 @@ class BasePlateMapper(ABC):
         # Track state of edge samples, and sample neighbors
         self.used_edge_samples: set[str] = set()
         self.multi_edge_samples: list[list[str]] = []
+
+        if predefined_control_map:
+            # Manual control map provided
+            if len(predefined_control_map) != len(self.control_samples):
+                raise ValueError(
+                    "The number of samples in the fixed map must match the number of control samples."
+                )
+
+            # Convert the WELL:SAMPLE_ID map to (R,C):SAMPLE_ID map
+            for well, sample_id in predefined_control_map.items():
+                r, c = well_to_index(well, self.plate_dims)
+                self.fixed_control_map[(r, c)] = sample_id
+
+            self.is_control_map_fixed = True
+
+        elif not self.control_samples:
+            # If no controls, no map needed.
+            self.is_control_map_fixed = True
 
     @abstractmethod  # Enforces that this method must be implemented by subclasses
     def generate_plate(self) -> np.ndarray:
@@ -187,8 +211,14 @@ class PlateMapperSimple(BasePlateMapper):
 class PlateMapperNeighborAware(BasePlateMapper):
     """Generate Plate maps with neighbor-awareness to minimize re-neighboring."""
 
-    def __init__(self, sample_ids: list[str], control_sample_ids: list[str], plate_size: int = 384):
-        super().__init__(sample_ids, control_sample_ids, plate_size)
+    def __init__(
+        self,
+        sample_ids: list[str],
+        control_sample_ids: list[str],
+        plate_size: int = 384,
+        predefined_control_map=None,
+    ):
+        super().__init__(sample_ids, control_sample_ids, plate_size, predefined_control_map)
         self.neighbor_pairs: set[tuple[str, str]] = set()
 
     def _get_neighbors(self, r: int, c: int, plate: np.ndarray) -> list[str]:
@@ -333,7 +363,39 @@ class PlateMapperNeighborAware(BasePlateMapper):
         print(f"Plate map successfully saved to {filename}")
 
 
-def load_sample_ids(filename: str, control_prefix: str = None) -> tuple[list[str], list[str]]:
+def well_to_index(well: str, plate_dims: tuple[int, int]) -> tuple[int, int]:
+    """Convert a standard well designation (e.g., 'A1', 'H12') to (row_index, col_index)."""
+    rows, cols = plate_dims
+
+    # Well must be at least two characters (Row letter + Col number)
+    if len(well) < 2:
+        raise ValueError(f"Invalid well designation: {well}")
+
+    # Determine row index
+    row_letter = well[0].upper()
+    row_index = ord(row_letter) - ord("A")
+
+    # Determine column index
+    try:
+        col_number = int(well[1:])
+        col_index = col_number - 1
+    except ValueError as e:
+        raise ValueError(f"Invalid column number in well designation: {well}") from e
+
+    # Validation
+    if not (0 <= row_index < rows and 0 <= col_index < cols):
+        max_row_letter = chr(ord("A") + rows - 1)
+        max_col_number = cols
+        raise ValueError(
+            f"Well {well} is outside plate dimensions ({rows}x{cols}). Max well is {max_row_letter}."
+        )
+
+    return row_index, col_index
+
+
+def load_sample_ids(
+    filename: str, control_prefix: str | None = None
+) -> tuple[list[str], list[str]]:
     """Load in a list of file names from csv file."""
     all_samples = []
     control_samples = []

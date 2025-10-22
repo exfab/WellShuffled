@@ -14,6 +14,36 @@ from wellshuffled.plate_generator import (
 )
 
 
+def parse_fixed_map(ctx, param, value):
+    """Parse the --fixed-map string into a dictionary of {WELL: SAMPLE_ID}."""
+    if not value:
+        return None
+
+    fixed_map = {}
+    try:
+        # Expected format: "A1:control-85,H12:control-96"
+        pairs = value.split(",")
+        if not pairs:
+            raise ValueError("Map is empty.")
+
+        for pair in pairs:
+            if ":" not in pair:
+                raise ValueError(f"Each assignment must be in WELL:SAMPLE_ID format. Got '{pair}'.")
+
+            # Split into well and sample_id, using maxsplit=1 in case SAMPLE_ID contains a colon
+            parts = pair.strip().split(":", 1)
+            if len(parts) != 2:
+                raise ValueError(f"Each assignment must be in WELL:SAMPLE_ID format. Got '{pair}'.")
+
+            well, sample_id = parts
+            fixed_map[well.upper()] = sample_id.strip()
+
+        return fixed_map
+    except Exception as e:
+        # Re-raise as a BadParameter for Click to handle gracefully
+        raise click.BadParameter(f"Could not parse --fixed-map string: {e}") from None
+
+
 @click.command()
 @click.argument("sample_file", type=click.Path(exists=True, dir_okay=False, resolve_path=True))
 @click.argument("output_path", type=click.Path())
@@ -41,9 +71,17 @@ from wellshuffled.plate_generator import (
 @click.option(
     "--control-prefix",
     default=None,
-    help="Prefix used to identify control/blank samples in SAMPLE_FILE (e.g., 'B', 'CTRL')."
+    help="Prefix used to identify control/blank samples in SAMPLE_FILE (e.g., 'B', 'CTRL').",
 )
-def main(sample_file, output_path, plates, size, simple, separate_files, seed, control_prefix):
+@click.option(
+    "--fixed-map",
+    default=None,
+    callback=parse_fixed_map,
+    help="Manually specify fixed control locations (e.g., 'A1:control-85,H12:control-96'). Overrides Plate 1 randomization.",
+)
+def main(
+    sample_file, output_path, plates, size, simple, separate_files, seed, control_prefix, fixed_map
+):
     """
     Generate randomized plate maps from a list of SAMPLE_IDs.
 
@@ -66,15 +104,26 @@ def main(sample_file, output_path, plates, size, simple, separate_files, seed, c
     click.echo(f"Loaded {total_samples} total samples from {os.path.basename(sample_file)}.")
     click.echo(f"  - {len(samples)} variable samples to randomize.")
     if control_prefix:
-        click.echo(f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}').")
+        click.echo(
+            f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}')."
+        )
+
+    if fixed_map:
+        click.echo(
+            "Using MANUALLY DEFINED control map. Skipping Plate 1 randomization for controls."
+        )
 
     # Choose the correct mapper class
     if simple:
         click.echo("Using simple randomization logic.")
-        mapper = PlateMapperSimple(samples, control_samples, plate_size=plate_size)
+        mapper = PlateMapperSimple(
+            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map
+        )
     else:
         click.echo("Using neighbor-aware randomization logic.")
-        mapper = PlateMapperNeighborAware(samples, control_samples, plate_size=plate_size)
+        mapper = PlateMapperNeighborAware(
+            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map
+        )
 
     # Generate plates
     click.echo(f"Generating {plates} plate(s) of size {plate_size}...")
