@@ -8,10 +8,57 @@ import click
 from wellshuffled.plate_generator import (
     PlateMapperNeighborAware,
     PlateMapperSimple,
+    load_control_map_from_csv,
     load_sample_ids,
     save_all_plates_to_single_csv,
     save_plate_to_csv,
 )
+
+
+def parse_fixed_map(ctx, param, value):
+    """Parse the --fixed-map string into a dictionary of {WELL: SAMPLE_ID}."""
+    if not value:
+        return None
+
+    fixed_map = {}
+    try:
+        # Expected format: "A1:control-85,H12:control-96"
+        pairs = value.split(",")
+        if not pairs:
+            raise ValueError("Map is empty.")
+
+        for pair in pairs:
+            if ":" not in pair:
+                raise ValueError(f"Each assignment must be in WELL:SAMPLE_ID format. Got '{pair}'.")
+
+            # Split into well and sample_id, using maxsplit=1 in case SAMPLE_ID contains a colon
+            parts = pair.strip().split(":", 1)
+            if len(parts) != 2:
+                raise ValueError(f"Each assignment must be in WELL:SAMPLE_ID format. Got '{pair}'.")
+
+            well, sample_id = parts
+            fixed_map[well.upper()] = sample_id.strip()
+
+        return fixed_map
+    except Exception as e:
+        # Re-raise as a BadParameter for Click to handle gracefully
+        raise click.BadParameter(f"Could not parse --fixed-map string: {e}") from None
+
+
+def parse_fixed_map_file(ctx, param, value):
+    """Callback to parse the --fixed-map-file path and load data."""
+    if not value:
+        return None
+
+    # We pass the file path to the utility function in plate_generator
+    try:
+        fixed_map = load_control_map_from_csv(value)
+        if not fixed_map:
+            raise click.BadParameter("Fixed map file is empty or contains no valid data.")
+        return fixed_map
+    except Exception as e:
+        # Catch any exceptions during file reading/parsing and report to the user
+        raise click.BadParameter(f"Error reading fixed map file '{value}': {e}") from e
 
 
 @click.command()
@@ -41,9 +88,32 @@ from wellshuffled.plate_generator import (
 @click.option(
     "--control-prefix",
     default=None,
-    help="Prefix used to identify control/blank samples in SAMPLE_FILE (e.g., 'B', 'CTRL')."
+    help="Prefix used to identify control/blank samples in SAMPLE_FILE (e.g., 'B', 'CTRL').",
 )
-def main(sample_file, output_path, plates, size, simple, separate_files, seed, control_prefix):
+@click.option(
+    "--fixed-map",
+    default=None,
+    callback=parse_fixed_map,
+    help="Manually specify fixed control locations (e.g., 'A1:control-85,H12:control-96'). Overrides Plate 1 randomization.",
+)
+@click.option(
+    "--fixed-map-file",
+    default=None,
+    callback=parse_fixed_map_file,
+    help="Manually specify fixed control locations from a csv file (e.g well_pos, sample_id). Overrides Plate 1 randomization.",
+)
+def main(
+    sample_file,
+    output_path,
+    plates,
+    size,
+    simple,
+    separate_files,
+    seed,
+    control_prefix,
+    fixed_map,
+    fixed_map_file,
+):
     """
     Generate randomized plate maps from a list of SAMPLE_IDs.
 
@@ -66,15 +136,30 @@ def main(sample_file, output_path, plates, size, simple, separate_files, seed, c
     click.echo(f"Loaded {total_samples} total samples from {os.path.basename(sample_file)}.")
     click.echo(f"  - {len(samples)} variable samples to randomize.")
     if control_prefix:
-        click.echo(f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}').")
+        click.echo(
+            f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}')."
+        )
+
+    if fixed_map or fixed_map_file:
+        click.echo(
+            "Using MANUALLY DEFINED control map. Skipping Plate 1 randomization for controls."
+        )
+
+    # TODO: [mcnaughtonadm|10212025] Clean this logic up, just a temporary fix to get it working. Logic should be a little more robust than this...
+    if fixed_map_file:
+        fixed_map = fixed_map_file
 
     # Choose the correct mapper class
     if simple:
         click.echo("Using simple randomization logic.")
-        mapper = PlateMapperSimple(samples, control_samples, plate_size=plate_size)
+        mapper = PlateMapperSimple(
+            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map
+        )
     else:
         click.echo("Using neighbor-aware randomization logic.")
-        mapper = PlateMapperNeighborAware(samples, control_samples, plate_size=plate_size)
+        mapper = PlateMapperNeighborAware(
+            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map
+        )
 
     # Generate plates
     click.echo(f"Generating {plates} plate(s) of size {plate_size}...")
