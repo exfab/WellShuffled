@@ -1,17 +1,12 @@
 """Pytest suite for the plate_generator module."""
 
-import os
 import random
 
 import numpy as np
 import pytest
 
-from wellshuffled.plate_generator import (
-    PlateMapperNeighborAware,
-    PlateMapperSimple,
-    load_sample_ids,
-    well_to_index,
-)
+from wellshuffled.plate_generator import PlateMapperNeighborAware, PlateMapperSimple
+from wellshuffled.utilities import load_sample_ids, well_to_index
 
 # --- Test Data ---
 
@@ -24,7 +19,7 @@ TOTAL_SAMPLES = len(ALL_SAMPLES)  # 82
 
 # Define a complete manual map for testing the new feature (all 12 controls)
 manual_wells = [f"A{i + 1}" for i in range(12)]
-MANUAL_CONTROL_MAP = {well: control for well, control in zip(manual_wells, CONTROLS)}
+MANUAL_CONTROL_MAP = dict(zip(manual_wells, CONTROLS, strict=True))
 
 # Expected internal map for a 96-well plate (8x12)
 EXPECTED_FIXED_MAP_96 = {(0, i): CONTROLS[i] for i in range(12)}
@@ -34,23 +29,23 @@ EXPECTED_FIXED_MAP_96 = {(0, i): CONTROLS[i] for i in range(12)}
 
 @pytest.fixture(autouse=True)
 def set_random_seed():
-    """Sets a fixed seed for reproducible test results."""
+    """Set a fixed seed for reproducible test results."""
     random.seed(42)
     np.random.seed(42)
 
 
 @pytest.fixture
 def sample_file_path(tmp_path):
-    """Creates a temporary sample file for testing load_sample_ids."""
+    """Create a temporary sample file for testing load_sample_ids."""
     p = tmp_path / "samples.txt"
     p.write_text(SAMPLE_FILE_CONTENT)
     return str(p)
 
 
 def validate_plate_contents(plate: np.ndarray, expected_filled_count: int):
-    """Helper to check shape and content uniqueness."""
+    """Help to check shape and content uniqueness."""
     # Check that the plate is filled with the expected number of samples (82, not 96)
-    assert np.count_nonzero(plate != None) == expected_filled_count
+    assert np.count_nonzero(plate != None) == expected_filled_count  # noqa: E711
 
     # Check that all placed samples are unique on the plate
     flat_plate = [s for s in plate.flatten().tolist() if s is not None]
@@ -58,7 +53,7 @@ def validate_plate_contents(plate: np.ndarray, expected_filled_count: int):
 
 
 def get_control_positions(plate: np.ndarray, control_ids: list[str]) -> dict[tuple, str]:
-    """Helper to extract control sample positions in the (R, C): Sample ID format."""
+    """Help to extract control sample positions in the (R, C): Sample ID format."""
     positions = {}
     rows, cols = plate.shape
     for r in range(rows):
@@ -118,7 +113,7 @@ def test_simple_mapper_control_fixing():
     plate1 = mapper.generate_plate()
     pos_map1 = get_control_positions(plate1, CONTROLS)
 
-    assert mapper.is_control_map_fixed == True
+    assert mapper.is_control_map_fixed
 
     # The control positions on Plate 1 must be the fixed map
     assert pos_map1 == mapper.fixed_control_map
@@ -134,7 +129,6 @@ def test_simple_mapper_control_fixing():
 
 def test_mapper_manual_control_fixing():
     """Test that manually defined control positions are used for all plates."""
-
     # FIX: MANUAL_CONTROL_MAP now contains all 12 controls, resolving ValueError.
 
     # Simple Mapper Test
@@ -142,7 +136,7 @@ def test_mapper_manual_control_fixing():
         SAMPLES, CONTROLS, plate_size=96, predefined_control_map=MANUAL_CONTROL_MAP
     )
 
-    assert mapper_s.is_control_map_fixed == True
+    assert mapper_s.is_control_map_fixed
     assert mapper_s.fixed_control_map == EXPECTED_FIXED_MAP_96
 
     plate1_s = mapper_s.generate_plate()
@@ -156,7 +150,7 @@ def test_mapper_manual_control_fixing():
         SAMPLES, CONTROLS, plate_size=96, predefined_control_map=MANUAL_CONTROL_MAP
     )
 
-    assert mapper_n.is_control_map_fixed == True
+    assert mapper_n.is_control_map_fixed
     assert mapper_n.fixed_control_map == EXPECTED_FIXED_MAP_96
 
     plate1_n = mapper_n.generate_plate()
@@ -173,7 +167,7 @@ def test_neighbor_aware_mapper_control_fixing():
     plate1 = mapper.generate_plate()
     pos_map1 = get_control_positions(plate1, CONTROLS)
 
-    assert mapper.is_control_map_fixed == True
+    assert mapper.is_control_map_fixed
     assert pos_map1 == mapper.fixed_control_map
 
     plate2 = mapper.generate_plate()
@@ -186,20 +180,20 @@ def test_neighbor_aware_mapper_control_fixing():
 def test_neighbor_aware_mapper_neighbor_tracking():
     """Test that neighbor pairs are tracked correctly after generation."""
     mapper = PlateMapperNeighborAware(SAMPLES, CONTROLS, plate_size=96)
-    plate1 = mapper.generate_plate()
+    mapper.generate_plate()
 
     # FIX: The expected number of pairs is LESS THAN 172 since the plate is not full.
     # The actual number will vary slightly, but must be > 0 and < 172.
     assert 0 < len(mapper.neighbor_pairs) < 172
 
-    plate2 = mapper.generate_plate()
+    mapper.generate_plate()
 
     # After plate 2, the number of unique neighbor pairs should have increased.
     plate1_pairs = mapper.neighbor_pairs.copy()
 
     mapper_p2 = PlateMapperNeighborAware(SAMPLES, CONTROLS, plate_size=96)
     mapper_p2.neighbor_pairs = plate1_pairs
-    plate3 = mapper_p2.generate_plate()
+    mapper_p2.generate_plate()
 
     # The number of unique pairs should be significantly higher than 172
     assert len(mapper_p2.neighbor_pairs) > 172
