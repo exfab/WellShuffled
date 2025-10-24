@@ -3,6 +3,7 @@
 import random
 from abc import ABC, abstractmethod
 
+import click
 import numpy as np
 
 from wellshuffled.utilities import (
@@ -317,11 +318,11 @@ class PlateMapperNeighborAware(BasePlateMapper):
 
             # If fails on constraints, fall back to normal placement
             if best_candidate is None:
-                print(
+                click.echo(
                     f"Warning: Could not find 'perfect' sample for position ({r}, {c}). Placing first available sample."
                 )
                 if not samples_to_place:
-                    print("No more samples!")
+                    click.echo("No more samples!")
                     continue
                 best_candidate = samples_to_place[0]
 
