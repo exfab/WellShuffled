@@ -1,5 +1,6 @@
 """CLI Script for interfacing with code features."""
 
+import csv
 import os
 import random
 
@@ -7,6 +8,7 @@ import click
 
 from wellshuffled.plate_generator import PlateMapperNeighborAware, PlateMapperSimple
 from wellshuffled.utilities import (
+    convert_position_to_well_number,
     load_control_map_from_csv,
     load_sample_ids,
     save_all_plates_to_single_csv,
@@ -45,7 +47,7 @@ def parse_fixed_map(ctx, param, value):
 
 
 def parse_fixed_map_file(ctx, param, value):
-    """Callback to parse the --fixed-map-file path and load data."""
+    """Parse the --fixed-map-file path and load data."""
     if not value:
         return None
 
@@ -60,7 +62,13 @@ def parse_fixed_map_file(ctx, param, value):
         raise click.BadParameter(f"Error reading fixed map file '{value}': {e}") from e
 
 
-@click.command()
+@click.group()
+def wellshuffled():
+    """Entrypoint to shuffle group."""
+    click.echo("WellShuffled: A tool for generating randomized plate maps.")
+
+
+@wellshuffled.command()
 @click.argument("sample_file", type=click.Path(exists=True, dir_okay=False, resolve_path=True))
 @click.argument("output_path", type=click.Path())
 @click.option(
@@ -101,7 +109,7 @@ def parse_fixed_map_file(ctx, param, value):
     callback=parse_fixed_map_file,
     help="Manually specify fixed control locations from a csv file (e.g well_pos, sample_id). Overrides Plate 1 randomization.",
 )
-def main(
+def shuffle(
     sample_file,
     output_path,
     plates,
@@ -182,5 +190,157 @@ def main(
         click.echo(str(mapper.multi_edge_samples))
 
 
+def _process_plate_data(plate_data, plate_index, trajectories, use_numeric_wells=False):
+    """Parse a single plate's rows and update trajectories."""
+    # Pull dimensions of plate
+    try:
+        num_rows = len(plate_data)
+        if num_rows == 0:
+            return
+
+        num_cols = len(plate_data[0])
+        if num_cols == 0:
+            return
+
+        plate_dims = (num_rows, num_cols)
+    except IndexError:
+        click.echo(f"Warning: Plate {plate_index} appears to be empty or malformed")
+        return
+
+    for r, row_data in enumerate(plate_data):
+        for c, sample_id in enumerate(row_data):
+            if sample_id and sample_id != "None":
+                # Convert 0-indexed (r, c) to standard well position (e.g., (0, 0) -> A1)
+                row_letter = chr(ord("A") + r)
+                col_number = c + 1
+                well_pos_alpha = f"{row_letter}{col_number}"
+
+                if use_numeric_wells:
+                    position_to_append = convert_position_to_well_number(well_pos_alpha, plate_dims)
+                else:
+                    position_to_append = well_pos_alpha
+
+                if sample_id not in trajectories:
+                    trajectories[sample_id] = []
+
+                trajectories[sample_id].append(position_to_append)
+
+
+@wellshuffled.command()
+@click.argument("input_path", type=click.Path(exists=True, resolve_path=True))
+@click.option(
+    "--output-csv",
+    type=click.Path(),
+    default=None,
+    help="Optional path to save the full trajectory map as a CSV file.",
+)
+@click.option(
+    "--numeric",
+    "use_numeric_wells",
+    is_flag=True,
+    default=None,
+    help="Return the plate positions as 1-based column major numeric values."
+)
+def trace(input_path, output_csv, use_numeric_wells):
+    """Trace the samples over their various plates."""
+
+    trajectories = {}
+
+    # 1. Determine files to process
+    if os.path.isdir(input_path):
+        # Scenario: Directory of separate files
+        file_paths = sorted([
+            os.path.join(input_path, f) for f in os.listdir(input_path) if f.endswith(".csv")
+        ])
+        if not file_paths:
+            click.echo(f"Error: No CSV files found in directory: {input_path}")
+            return
+
+        click.echo(f"Processing {len(file_paths)} separate plate files from {input_path}...")
+
+        # Process separate files sequentially
+        for i, file_path in enumerate(file_paths, start=1):
+            try:
+                with open(file_path, "r", newline="") as f:
+                    reader = csv.reader(f)
+                    plate_data = list(reader)
+                    _process_plate_data(plate_data, i, trajectories, use_numeric_wells)
+            except Exception as e:
+                click.echo(f"Error reading plate file {file_path}: {e}")
+                return
+
+    else:
+        # Scenario: Single combined file
+        click.echo(f"Processing combined plate map: {input_path}...")
+        current_plate_index = 0
+        plate_data = []
+
+        try:
+            with open(input_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    if line.startswith("Plate "):
+                        # Process previous plate if it exists
+                        if plate_data:
+                            _process_plate_data(plate_data, current_plate_index, trajectories, use_numeric_wells)
+
+                        # Start of new plate
+                        try:
+                            # Extract plate number from "Plate X" header
+                            current_plate_index = int(line.split(" ")[1])
+                        except (IndexError, ValueError):
+                            # Default to sequential indexing if format is unexpected
+                            current_plate_index += 1
+                        plate_data = []  # Reset for new plate
+                    else:
+                        # Collect well data from CSV line
+                        row_data = [cell.strip() for cell in line.split(",")]
+                        plate_data.append(row_data)
+
+                # Process the last plate block
+                if plate_data:
+                    _process_plate_data(plate_data, current_plate_index, trajectories, use_numeric_wells)
+
+        except Exception as e:
+            click.echo(f"An error occurred while reading the combined CSV: {e}")
+            return
+
+    # Output the data
+    if not trajectories:
+        click.echo("Error: No sample trajectories found in the provided path(s).")
+        return
+
+    click.echo("\n--- Sample Trajectories Across Plates ---")
+
+    # Sort samples alphabetically for predictable output
+    sorted_samples = sorted(trajectories.keys())
+
+    num_plates = max(len(path) for path in trajectories.values()) if trajectories else 0
+
+    for sample_id in sorted_samples:
+        path = " -> ".join(trajectories[sample_id])
+        click.echo(f"{sample_id}: {path}")
+
+    # Save results to CSV file
+    if output_csv:
+        try:
+            with open(output_csv, "w", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+
+                header = ["Sample_ID"] + [f"Plate {i + 1}" for i in range(num_plates)]
+                writer.writerow(header)
+
+                for sample_id in sorted_samples:
+                    row = [sample_id] + trajectories[sample_id]
+                    writer.writerow(row)
+
+            click.echo(f"\nSuccessfully saved all trajectories to: {output_csv}")
+        except Exception as e:
+            click.echo(f"\nError saving trajectory CSV to {output_csv}: {e}")
+
+
 if __name__ == "__main__":
-    main()
+    wellshuffled()
