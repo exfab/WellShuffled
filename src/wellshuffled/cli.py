@@ -5,9 +5,8 @@ import random
 
 import click
 
-from wellshuffled.plate_generator import (
-    PlateMapperNeighborAware,
-    PlateMapperSimple,
+from wellshuffled.plate_generator import PlateMapperNeighborAware, PlateMapperSimple
+from wellshuffled.utilities import (
     load_control_map_from_csv,
     load_sample_ids,
     save_all_plates_to_single_csv,
