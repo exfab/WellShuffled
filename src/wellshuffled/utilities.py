@@ -1,7 +1,9 @@
 """Utility scripts for `wellshuffled`."""
 
 import csv
+import re
 
+import click
 import numpy as np
 
 
@@ -32,6 +34,40 @@ def well_to_index(well: str, plate_dims: tuple[int, int]) -> tuple[int, int]:
         )
 
     return row_index, col_index
+
+
+def convert_position_to_well_number(well_position: str, plate_dims: tuple[int, int]) -> str:
+    """Convert an alphanumeric well position to its 1-based column-major number."""
+    rows, cols = plate_dims
+    well_position = str(well_position).upper()
+
+    # Use re.match for robust parsing: [Letter][Number+]
+    match = re.match(r"^([A-Z])(\d+)$", well_position)
+
+    if not match:
+        if well_position.isdigit():
+            # If input is already numeric, return it (useful if fixed map used numbers)
+            return well_position
+        raise ValueError(f"Invalid well position format: '{well_position}'")
+
+    # Correctly parse the row letter and column string
+    row_letter = match.group(1)
+    col_str = match.group(2)
+
+    num_rows, num_cols = rows, cols
+
+    row_index = ord(row_letter) - ord("A")
+    col_index = int(col_str) - 1
+
+    if not (0 <= row_index < num_rows and 0 <= col_index < num_cols):
+        max_row_letter = chr(ord("A") + num_rows - 1)
+        raise ValueError(
+            f"Well {well_position} is outside plate dimensions ({num_rows}x{num_cols}). Max well is {max_row_letter}{num_cols}."
+        )
+
+    well_number = (col_index * num_rows) + (row_index + 1)
+
+    return str(well_number)
 
 
 def load_control_map_from_csv(filename: str) -> dict[str, str]:
@@ -107,7 +143,7 @@ def load_sample_ids(
 def save_plate_to_csv(plate_data: np.ndarray, filename: str):
     """Save a single plate map to a CSV file."""
     np.savetxt(filename, plate_data, delimiter=",", fmt="%s")
-    print(f"Plate map successfully saved to {filename}")
+    click.echo(f"Plate map successfully saved to {filename}")
 
 
 def save_all_plates_to_single_csv(all_plates: list[np.ndarray], filename: str):
@@ -118,4 +154,4 @@ def save_all_plates_to_single_csv(all_plates: list[np.ndarray], filename: str):
                 f.write("\n")
             f.write(f"Plate {i + 1}\n")
             np.savetxt(f, plate, delimiter=",", fmt="%s")
-    print(f"All {len(all_plates)} plate maps successfully saved to {filename}")
+    click.echo(f"All {len(all_plates)} plate maps successfully saved to {filename}")

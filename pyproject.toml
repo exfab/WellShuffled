@@ -26,7 +26,8 @@ dev = [
 ]
 
 [project.scripts]
-wellshuffled = "wellshuffled.cli:main"
+wellshuffled = "wellshuffled.cli:wellshuffled"
+
 
 [tool.isort]
 profile = "black"
