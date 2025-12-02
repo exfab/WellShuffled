@@ -62,6 +62,29 @@ def parse_fixed_map_file(ctx, param, value):
         raise click.BadParameter(f"Error reading fixed map file '{value}': {e}") from e
 
 
+def parse_dimensions(ctx, param, value):
+    """Parse a string like '8,12' or '8x12' into a tuple (rows, cols)."""
+    if not value:
+        return None
+
+    try:
+        # distinct separator handling
+        if "," in value:
+            parts = value.split(",")
+        elif "x" in value.lower():
+            parts = value.lower().split("x")
+        else:
+            # Fallback for space separated if passed as a single quoted string
+            parts = value.split()
+
+        if len(parts) != 2:
+            raise ValueError("Dimensions must be two numbers (rows, cols).")
+
+        return (int(parts[0]), int(parts[1]))
+    except Exception:
+        raise click.BadParameter(f"Dimensions must be in format 'rows,cols' (e.g., 8,12). Got: {value}")
+
+
 @click.group()
 def wellshuffled():
     """Entrypoint to shuffle group."""
@@ -109,6 +132,18 @@ def wellshuffled():
     callback=parse_fixed_map_file,
     help="Manually specify fixed control locations from a csv file (e.g well_pos, sample_id). Overrides Plate 1 randomization.",
 )
+@click.option(
+    "--nonstandard",
+    is_flag=True,
+    default=False,
+    help="A flag to allow for the use of non-standard plate dimensions (not 48, 96, 384, etc)",
+)
+@click.option(
+    "--nonstandard_dims",
+    default=None,
+    callback=parse_dimensions,
+    help="The dimensions (x, y) for the nonstandard plate"
+)
 def shuffle(
     sample_file,
     output_path,
@@ -120,6 +155,8 @@ def shuffle(
     control_prefix,
     fixed_map,
     fixed_map_file,
+    nonstandard,
+    nonstandard_dims
 ):
     """
     Generate randomized plate maps from a list of SAMPLE_IDs.
@@ -160,12 +197,12 @@ def shuffle(
     if simple:
         click.echo("Using simple randomization logic.")
         mapper = PlateMapperSimple(
-            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map
+            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map, nonstandard=nonstandard, nonstandard_dims=nonstandard_dims
         )
     else:
         click.echo("Using neighbor-aware randomization logic.")
         mapper = PlateMapperNeighborAware(
-            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map
+            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map, nonstandard=nonstandard, nonstandard_dims=nonstandard_dims
         )
 
     # Generate plates

@@ -20,16 +20,27 @@ class BasePlateMapper(ABC):
         control_sample_ids: list[str],
         plate_size: int = 96,
         predefined_control_map: dict[str, str] | None = None,
+        nonstandard = False,
+        nonstandard_dims: tuple[int,int] | None = None,
     ):
-        if plate_size not in [96, 384]:
+        if plate_size not in [96, 384] and not nonstandard:
             raise ValueError("Plate size unknown, must be 96 or 384.")
+        
+        if nonstandard and not nonstandard_dims:
+            raise ValueError("Non-standard mode requires `nonstandard_dims` tuple.")
 
         self.samples = list(sample_ids)
         self.control_samples = list(control_sample_ids)
         self.all_samples = self.samples + self.control_samples
 
-        self.plate_size = plate_size
-        self.plate_dims = (16, 24) if plate_size == 384 else (8, 12)
+        # We check if the plate is standard or non-standard and set the plate size and dimensions based on that
+        if nonstandard:
+            self.plate_dims = nonstandard_dims
+            self.plate_size = nonstandard_dims[0] * nonstandard_dims[1]
+
+        else:
+            self.plate_size = plate_size
+            self.plate_dims = (16, 24) if plate_size == 384 else (8, 12)
 
         self.fixed_control_map: dict[tuple[int, int], str] = {}
         self.is_control_map_fixed = False
@@ -37,10 +48,16 @@ class BasePlateMapper(ABC):
         rows, cols = self.plate_dims
         all_indices = rows * cols
 
+        # Check for filling a partial plate
         if len(self.all_samples) > all_indices:
             raise ValueError(
                 f"Total Samples ({len(self.all_samples)}) exceeds wells ({all_indices})."
             )
+        elif len(self.all_samples) < all_indices:
+            click.echo(f"Fitting {len(self.all_samples)} samples into plate of size {plate_size}.")
+            self.partial_plate = True
+        else:
+            self.partial_plate = False
 
         # Track state of edge samples, and sample neighbors
         self.used_edge_samples: set[str] = set()
@@ -64,7 +81,7 @@ class BasePlateMapper(ABC):
             # If no controls, no map needed.
             self.is_control_map_fixed = True
 
-    @abstractmethod  # Enforces that this method must be implemented by subclasses
+    @abstractmethod
     def generate_plate(self) -> np.ndarray:
         """Abstract method to generate a single plate map. Must be implemented by subclasses."""
         pass
@@ -216,8 +233,10 @@ class PlateMapperNeighborAware(BasePlateMapper):
         control_sample_ids: list[str],
         plate_size: int = 384,
         predefined_control_map=None,
+        nonstandard=False,
+        nonstandard_dims=None,
     ):
-        super().__init__(sample_ids, control_sample_ids, plate_size, predefined_control_map)
+        super().__init__(sample_ids, control_sample_ids, plate_size, predefined_control_map, nonstandard, nonstandard_dims)
         self.neighbor_pairs: set[tuple[str, str]] = set()
 
     def _get_neighbors(self, r: int, c: int, plate: np.ndarray) -> list[str]:
