@@ -173,7 +173,10 @@ def shuffle(
     click.echo("--- Plate Map Generator ---")
 
     # Convert size to integer
-    plate_size = int(size)
+    if nonstandard and nonstandard_dims:
+        plate_size = int(nonstandard_dims[0] * nonstandard_dims[1])
+    else:
+        plate_size = int(size)
 
     # Load samples
     samples, control_samples, initial_position_map = load_sample_ids(
@@ -190,7 +193,7 @@ def shuffle(
 
     # Log that we are using the input well positions for the first plate, don't need to do anything else.
     if initial_position_map:
-        click.echo("Sample file contains a pre-defined plate, using it for Plate 1.")
+        click.echo("Sample file contains initial plate positions, using it for Plate 1.")
 
     # Identify if we have a fixed control map (either as input text or a file.)
     if fixed_map or fixed_map_file:
@@ -202,7 +205,7 @@ def shuffle(
 
     # Choose the correct mapper class
     if simple:
-        click.echo("Using simple randomization logic.")
+        click.echo("Using simple randomization logic, minimizing repeated samples on the edge.")
         mapper = PlateMapperSimple(
             samples,
             control_samples,
@@ -213,7 +216,7 @@ def shuffle(
             initial_position_map=initial_position_map,
         )
     else:
-        click.echo("Using neighbor-aware randomization logic.")
+        click.echo("Using neighbor-aware randomization logic, minimizing repeated samples on the edge and repeated sample neighbors.")
         mapper = PlateMapperNeighborAware(
             samples,
             control_samples,

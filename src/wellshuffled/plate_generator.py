@@ -1,4 +1,4 @@
-"""Script for generating randomized plates various configurations."""
+"""Script for generating randomized plates for various configurations."""
 
 import random
 from abc import ABC, abstractmethod
