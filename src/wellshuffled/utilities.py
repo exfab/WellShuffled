@@ -7,9 +7,29 @@ import click
 import numpy as np
 
 
+def convert_well_number_to_position(
+    well_number: int, plate_dims: tuple[int, int]
+) -> str:
+    """Convert a 1-based column-major well number to an alphanumeric well position (e.g., 1 -> 'A1')."""
+    rows, cols = plate_dims
+    if not (1 <= well_number <= rows * cols):
+        raise ValueError(f"Well number {well_number} is out of bounds for a {rows}x{cols} plate.")
+
+    col_index = (well_number - 1) // rows
+    row_index = (well_number - 1) % rows
+
+    row_letter = chr(ord("A") + row_index)
+    col_number = col_index + 1
+
+    return f"{row_letter}{col_number}"
+
+
 def well_to_index(well: str, plate_dims: tuple[int, int]) -> tuple[int, int]:
     """Convert a standard well designation (e.g., 'A1', 'H12') to (row_index, col_index)."""
     rows, cols = plate_dims
+
+    if well.isdigit():
+        well = convert_well_number_to_position(int(well), plate_dims)
 
     # Well must be at least two characters (Row letter + Col number)
     if len(well) < 2:
@@ -74,8 +94,14 @@ def load_control_map_from_csv(filename: str) -> dict[str, str]:
     """
     Load a control map from a two-column CSV file (Well, Sample ID).
 
-    :param filename: Path to the CSV file.
-    :return: A dictionary mapping well position string (e.g., 'A1') to sample ID.
+    Parameters:
+    -----------
+        filename : str
+            Path to the CSV file.
+
+    Returns:
+    --------
+        A dictionary mapping well position string (e.g., 'A1') to sample ID.
     """
     # The map is temporarily stored as {Well: Sample ID} string-to-string
     control_map = {}
@@ -121,23 +147,48 @@ def load_control_map_from_csv(filename: str) -> dict[str, str]:
 
 def load_sample_ids(
     filename: str, control_prefix: str | None = None
-) -> tuple[list[str], list[str]]:
-    """Load in a list of file names from csv file."""
+) -> tuple[list[str], list[str], dict[str, str] | None]:
+    """
+    Load in a list of file names from csv file.
+
+    Handles an optional second column for an initial position map.
+    """
     all_samples = []
     control_samples = []
+    initial_position_map = {}
+    has_initial_position_map = False
 
     with open(filename, "r", newline="") as csv_file:
-        for row in csv_file:
-            sample_id = row.strip()
+        reader = csv.reader(csv_file)
+        for i, row in enumerate(reader):
+            if not row:
+                continue
+
+            sample_id = row[0].strip()
             if not sample_id:
                 continue
 
+            # Check if the sample row is a control or normal sample
             if control_prefix and sample_id.startswith(control_prefix):
                 control_samples.append(sample_id)
             else:
                 all_samples.append(sample_id)
 
-    return all_samples, control_samples
+            if len(row) > 1 and row[1].strip():
+                has_initial_position_map = True
+                well_pos = row[1].strip().upper()
+                # Check if the position is unique in the provided file (can't have 2 samples in 1 position)
+                if well_pos in initial_position_map:
+                    raise ValueError(
+                        f"Well position '{well_pos}' is duplicated in the sample file."
+                    )
+                initial_position_map[well_pos] = sample_id
+
+    return (
+        all_samples,
+        control_samples,
+        initial_position_map if has_initial_position_map else None,
+    )
 
 
 def save_plate_to_csv(plate_data: np.ndarray, filename: str):

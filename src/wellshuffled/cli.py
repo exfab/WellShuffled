@@ -174,7 +174,9 @@ def shuffle(
     plate_size = int(size)
 
     # Load samples
-    samples, control_samples = load_sample_ids(sample_file, control_prefix=control_prefix)
+    samples, control_samples, initial_position_map = load_sample_ids(
+        sample_file, control_prefix=control_prefix
+    )
 
     total_samples = len(samples) + len(control_samples)
     click.echo(f"Loaded {total_samples} total samples from {os.path.basename(sample_file)}.")
@@ -184,25 +186,40 @@ def shuffle(
             f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}')."
         )
 
+    # Log that we are using the input well positions for the first plate, don't need to do anything else.
+    if initial_position_map:
+        click.echo("Sample file contains a pre-defined plate, using it for Plate 1.")
+
+    # Identify if we have a fixed control map (either as input text or a file.)
     if fixed_map or fixed_map_file:
         click.echo(
             "Using MANUALLY DEFINED control map. Skipping Plate 1 randomization for controls."
         )
-
-    # TODO: [mcnaughtonadm|10212025] Clean this logic up, just a temporary fix to get it working. Logic should be a little more robust than this...
-    if fixed_map_file:
-        fixed_map = fixed_map_file
+        if fixed_map_file:
+            fixed_map = fixed_map_file
 
     # Choose the correct mapper class
     if simple:
         click.echo("Using simple randomization logic.")
         mapper = PlateMapperSimple(
-            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map, nonstandard=nonstandard, nonstandard_dims=nonstandard_dims
+            samples,
+            control_samples,
+            plate_size=plate_size,
+            predefined_control_map=fixed_map,
+            nonstandard=nonstandard,
+            nonstandard_dims=nonstandard_dims,
+            initial_position_map=initial_position_map,
         )
     else:
         click.echo("Using neighbor-aware randomization logic.")
         mapper = PlateMapperNeighborAware(
-            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map, nonstandard=nonstandard, nonstandard_dims=nonstandard_dims
+            samples,
+            control_samples,
+            plate_size=plate_size,
+            predefined_control_map=fixed_map,
+            nonstandard=nonstandard,
+            nonstandard_dims=nonstandard_dims,
+            initial_position_map=initial_position_map,
         )
 
     # Generate plates

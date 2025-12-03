@@ -15,7 +15,7 @@ SAMPLES = [f"sample-{i + 1}" for i in range(70)]
 CONTROLS = [f"control-{i + 85}" for i in range(12)]
 ALL_SAMPLES = SAMPLES + CONTROLS
 SAMPLE_FILE_CONTENT = "\n".join(ALL_SAMPLES)
-TOTAL_SAMPLES = len(ALL_SAMPLES)  # 82
+TOTAL_SAMPLES = len(ALL_SAMPLES) # 82 Total Samples
 
 # Define a complete manual map for testing the new feature (all 12 controls)
 manual_wells = [f"A{i + 1}" for i in range(12)]
@@ -30,8 +30,8 @@ EXPECTED_FIXED_MAP_96 = {(0, i): CONTROLS[i] for i in range(12)}
 @pytest.fixture(autouse=True)
 def set_random_seed():
     """Set a fixed seed for reproducible test results."""
-    random.seed(42)
-    np.random.seed(42)
+    random.seed(123)
+    np.random.seed(123)
 
 
 @pytest.fixture
@@ -70,11 +70,14 @@ def get_control_positions(plate: np.ndarray, control_ids: list[str]) -> dict[tup
 def test_load_sample_ids(sample_file_path):
     """Test that sample loading correctly separates variable and control samples."""
     # FIX: Use tmp_path fixture for file access, resolving the TypeError
-    variable, control = load_sample_ids(sample_file_path, control_prefix="control-")
+    variable, control, initial_position_map = load_sample_ids(
+        sample_file_path, control_prefix="control-"
+    )
     assert len(variable) == 70
     assert len(control) == 12
     assert "sample-1" in variable
     assert "control-85" in control
+    assert initial_position_map is None
 
 
 def test_well_to_index():
@@ -83,6 +86,7 @@ def test_well_to_index():
     assert well_to_index("h12", (8, 12)) == (7, 11)
     assert well_to_index("B5", (8, 12)) == (1, 4)
     assert well_to_index("P24", (16, 24)) == (15, 23)
+    assert well_to_index("1", (8, 12)) == (0, 0)
 
     with pytest.raises(ValueError):
         well_to_index("A13", (8, 12))  # Out of bounds column
@@ -197,3 +201,57 @@ def test_neighbor_aware_mapper_neighbor_tracking():
 
     # The number of unique pairs should be significantly higher than 172
     assert len(mapper_p2.neighbor_pairs) > 172
+
+
+def test_conflicting_maps():
+    """Test that a ValueError is raised when the fixed_control_map conflicts with the initial_position_map."""
+    initial_position_map = {"A1": "sample-1", "A2": "sample-2"}
+    fixed_control_map = {"A1": "control-85"}
+
+    with pytest.raises(ValueError):
+        PlateMapperSimple(
+            SAMPLES,
+            CONTROLS,
+            plate_size=96,
+            predefined_control_map=fixed_control_map,
+            initial_position_map=initial_position_map,
+        )
+
+def test_conflicting_controls():
+    """Test that a ValueError is raised when a control sample in the fixed_control_map conflicts with the same control listed in the initial_position_map."""
+    initial_position_map = {"A1": "control-85"}
+    fixed_control_map = {"A2": "control-85"}
+
+    with pytest.raises(ValueError):
+        PlateMapperSimple(
+            SAMPLES,
+            CONTROLS,
+            plate_size=96,
+            predefined_control_map=fixed_control_map,
+            initial_position_map=initial_position_map,
+        )
+
+
+def test_initial_plate_with_fixed_controls():
+    """Test that the first plate is generated correctly when both an initial_position_map and a fixed_control_map are provided."""
+    initial_position_map = {
+        "A1": "Sample-1",
+        "A2": "Sample-2",
+        "A3": "Control-1",
+        "A4": "Control-2",
+    }
+    fixed_control_map = {"A3": "Control-1"}
+    mapper = PlateMapperSimple(
+        ["Sample-1", "Sample-2"],
+        ["Control-1", "Control-2"],
+        plate_size=96,
+        predefined_control_map=fixed_control_map,
+        initial_position_map=initial_position_map,
+    )
+    plates = mapper.generate_multiple_plates(1)
+    plate1 = plates[0]
+    assert plate1[0, 0] == "Sample-1"
+    assert plate1[0, 1] == "Sample-2"
+    assert plate1[0, 2] == "Control-1"
+    assert plate1[0, 3] == "Control-2"
+
