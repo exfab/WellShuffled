@@ -37,13 +37,16 @@ class BasePlateMapper(ABC):
         self.all_samples = self.samples + self.control_samples
 
         # Check if we pass in the initial plate positions
-        self.initial_position_map = initial_position_map
-        self.use_initial_position_map = self.initial_position_map is not None
+        self.initial_position_map = (
+            initial_position_map if initial_position_map is not None else None
+        )
 
         # We check if the plate is standard or non-standard and set the plate size and dimensions based on that
-        if nonstandard:
+        if nonstandard and nonstandard_dims:
             self.plate_dims = nonstandard_dims
             self.plate_size = nonstandard_dims[0] * nonstandard_dims[1]
+        elif nonstandard and not nonstandard_dims:
+            raise ValueError("Non-standard flag raised, but no nonstandard_dims provided!")
         else:
             self.plate_size = plate_size
             self.plate_dims = (16, 24) if plate_size == 384 else (8, 12)
@@ -62,9 +65,7 @@ class BasePlateMapper(ABC):
                 f"Total Samples ({len(self.all_samples)}) exceeds wells ({all_indices})."
             )
         elif len(self.all_samples) < all_indices:
-            click.echo(
-                f"Fitting {len(self.all_samples)} samples into plate of size {plate_size}."
-            )
+            click.echo(f"Fitting {len(self.all_samples)} samples into plate of size {plate_size}.")
             self.partial_plate = True
         else:
             self.partial_plate = False
@@ -74,21 +75,25 @@ class BasePlateMapper(ABC):
         self.multi_edge_samples: list[list[str]] = []
 
         # If the positions of the controls were predefined, store their positions in the fixed_control_map
-        if self.use_initial_position_map and predefined_control_map:
+        if self.initial_position_map and predefined_control_map:
             # Create a reverse map for the initial position map for easier lookup
             initial_pos_reverse_map = {v: k for k, v in self.initial_position_map.items()}
 
             for well, sample_id in predefined_control_map.items():
-                if sample_id in initial_pos_reverse_map:
-                    if initial_pos_reverse_map[sample_id] != well:
-                        raise ValueError(
-                            f"The position for control sample {sample_id} is different in the initial position map and the fixed control map."
-                        )
-                if well in self.initial_position_map:
-                    if self.initial_position_map[well] != sample_id:
-                        raise ValueError(
-                            f"The sample ID for well {well} is different in the initial position map and the fixed control map."
-                        )
+                if (
+                    sample_id in initial_pos_reverse_map
+                    and initial_pos_reverse_map[sample_id] != well
+                ):
+                    raise ValueError(
+                        f"The position for control sample {sample_id} is different in the initial position map and the fixed control map."
+                    )
+                if (
+                    well in self.initial_position_map
+                    and self.initial_position_map[well] != sample_id
+                ):
+                    raise ValueError(
+                        f"The sample ID for well {well} is different in the initial position map and the fixed control map."
+                    )
 
         if predefined_control_map:
             # Manual control map provided
@@ -114,7 +119,11 @@ class BasePlateMapper(ABC):
     def _generate_initial_position_plate(self) -> np.ndarray:
         """Generate a plate from the initial position map."""
         plate = np.full(self.plate_dims, None, dtype=object)
-        merged_map = self.initial_position_map.copy()
+        if self.initial_position_map:
+            merged_map = self.initial_position_map.copy()
+        else:
+            raise ValueError("No initial_position_map supplied!")
+
         if self.is_control_map_fixed:
             for (r, c), sample_id in self.fixed_control_map.items():
                 # Convert (r, c) back to well position string
@@ -144,7 +153,7 @@ class BasePlateMapper(ABC):
     def generate_multiple_plates(self, num_plates: int) -> list[np.ndarray]:
         """Generate a specified number of unique plate layouts."""
         plates = []
-        if self.use_initial_position_map:
+        if self.initial_position_map:
             # Generate the first plate from the predefined map
             predefined_plate = self._generate_initial_position_plate()
             plates.append(predefined_plate)
@@ -153,7 +162,7 @@ class BasePlateMapper(ABC):
                 self._update_neighbor_state(predefined_plate)
             # Reduce the number of plates to generate randomly
             num_plates -= 1
-            self.use_initial_position_map = False  # Only use it once
+            self.initial_position_map = None  # Only use it once
 
         for _ in range(num_plates):
             plates.append(self.generate_plate())
@@ -183,7 +192,6 @@ class PlateMapperSimple(BasePlateMapper):
             nonstandard_dims,
             initial_position_map,
         )
-
 
     def generate_plate(self) -> np.ndarray:
         """Generate a single randomized plate map."""

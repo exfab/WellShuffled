@@ -7,10 +7,26 @@ import click
 import numpy as np
 
 
-def convert_well_number_to_position(
-    well_number: int, plate_dims: tuple[int, int]
-) -> str:
-    """Convert a 1-based column-major well number to an alphanumeric well position (e.g., 1 -> 'A1')."""
+def convert_well_number_to_position(well_number: int, plate_dims: tuple[int, int]) -> str:
+    """Convert a 1-based column-major well number to an alphanumeric well position.
+
+    Parameters
+    ----------
+    well_number : int
+        The 1-based column-major well number.
+    plate_dims : tuple[int, int]
+        The dimensions of the plate (rows, cols).
+
+    Returns
+    -------
+    str
+        The alphanumeric well position (e.g., 'A1').
+
+    Raises
+    ------
+    ValueError
+        If the well number is out of bounds for the given plate dimensions.
+    """
     rows, cols = plate_dims
     if not (1 <= well_number <= rows * cols):
         raise ValueError(f"Well number {well_number} is out of bounds for a {rows}x{cols} plate.")
@@ -25,7 +41,25 @@ def convert_well_number_to_position(
 
 
 def well_to_index(well: str, plate_dims: tuple[int, int]) -> tuple[int, int]:
-    """Convert a standard well designation (e.g., 'A1', 'H12') to (row_index, col_index)."""
+    """Convert a standard well designation to a 0-based (row, col) index.
+
+    Parameters
+    ----------
+    well : str
+        The standard well designation (e.g., 'A1', 'H12').
+    plate_dims : tuple[int, int]
+        The dimensions of the plate (rows, cols).
+
+    Returns
+    -------
+    tuple[int, int]
+        The 0-based (row, col) index.
+
+    Raises
+    ------
+    ValueError
+        If the well designation is invalid or out of bounds.
+    """
     rows, cols = plate_dims
 
     if well.isdigit():
@@ -57,7 +91,25 @@ def well_to_index(well: str, plate_dims: tuple[int, int]) -> tuple[int, int]:
 
 
 def convert_position_to_well_number(well_position: str, plate_dims: tuple[int, int]) -> str:
-    """Convert an alphanumeric well position to its 1-based column-major number."""
+    """Convert an alphanumeric well position to its 1-based column-major number.
+
+    Parameters
+    ----------
+    well_position : str
+        The alphanumeric well position (e.g., 'A1').
+    plate_dims : tuple[int, int]
+        The dimensions of the plate (rows, cols).
+
+    Returns
+    -------
+    str
+        The 1-based column-major well number.
+
+    Raises
+    ------
+    ValueError
+        If the well position is invalid or out of bounds.
+    """
     rows, cols = plate_dims
     well_position = str(well_position).upper()
 
@@ -91,17 +143,22 @@ def convert_position_to_well_number(well_position: str, plate_dims: tuple[int, i
 
 
 def load_control_map_from_csv(filename: str) -> dict[str, str]:
-    """
-    Load a control map from a two-column CSV file (Well, Sample ID).
+    """Load a control map from a two-column CSV file.
 
-    Parameters:
-    -----------
-        filename : str
-            Path to the CSV file.
+    Parameters
+    ----------
+    filename : str
+        Path to the CSV file. The file should have two columns: Well and Sample ID.
 
-    Returns:
-    --------
+    Returns
+    -------
+    dict[str, str]
         A dictionary mapping well position string (e.g., 'A1') to sample ID.
+
+    Raises
+    ------
+    ValueError
+        If the CSV file is malformed.
     """
     # The map is temporarily stored as {Well: Sample ID} string-to-string
     control_map = {}
@@ -148,10 +205,27 @@ def load_control_map_from_csv(filename: str) -> dict[str, str]:
 def load_sample_ids(
     filename: str, control_prefix: str | None = None
 ) -> tuple[list[str], list[str], dict[str, str] | None]:
-    """
-    Load in a list of file names from csv file.
+    """Load sample IDs from a CSV file.
 
-    Handles an optional second column for an initial position map.
+    This function reads a CSV file containing sample IDs. It can also handle
+    an optional second column for an initial position map.
+
+    Parameters
+    ----------
+    filename : str
+        Path to the CSV file.
+    control_prefix : str, optional
+        A prefix used to identify control samples. If a sample ID starts with
+        this prefix, it will be treated as a control sample.
+
+    Returns
+    -------
+    tuple[list[str], list[str], dict[str, str] | None]
+        A tuple containing three elements:
+        - A list of variable sample IDs.
+        - A list of control sample IDs.
+        - A dictionary mapping well positions to sample IDs, if an initial
+          position map is provided in the CSV file. Otherwise, None.
     """
     all_samples = []
     control_samples = []
@@ -160,7 +234,7 @@ def load_sample_ids(
 
     with open(filename, "r", newline="") as csv_file:
         reader = csv.reader(csv_file)
-        for i, row in enumerate(reader):
+        for _, row in enumerate(reader):
             if not row:
                 continue
 
@@ -192,13 +266,29 @@ def load_sample_ids(
 
 
 def save_plate_to_csv(plate_data: np.ndarray, filename: str):
-    """Save a single plate map to a CSV file."""
+    """Save a single plate map to a CSV file.
+
+    Parameters
+    ----------
+    plate_data : np.ndarray
+        The plate data to save.
+    filename : str
+        The name of the output CSV file.
+    """
     np.savetxt(filename, plate_data, delimiter=",", fmt="%s")
     click.echo(f"Plate map successfully saved to {filename}")
 
 
 def save_all_plates_to_single_csv(all_plates: list[np.ndarray], filename: str):
-    """Save a list of plate maps to a single, combined CSV file."""
+    """Save a list of plate maps to a single, combined CSV file.
+
+    Parameters
+    ----------
+    all_plates : list[np.ndarray]
+        A list of plate maps to save.
+    filename : str
+        The name of the output CSV file.
+    """
     with open(filename, "w") as f:
         for i, plate in enumerate(all_plates):
             if i > 0:

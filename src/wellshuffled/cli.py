@@ -81,8 +81,10 @@ def parse_dimensions(ctx, param, value):
             raise ValueError("Dimensions must be two numbers (rows, cols).")
 
         return (int(parts[0]), int(parts[1]))
-    except Exception:
-        raise click.BadParameter(f"Dimensions must be in format 'rows,cols' (e.g., 8,12). Got: {value}")
+    except Exception as e:
+        raise click.BadParameter(
+            f"Dimensions must be in format 'rows,cols' (e.g., 8,12). Got: {value}"
+        ) from e
 
 
 @click.group()
@@ -142,7 +144,7 @@ def wellshuffled():
     "--nonstandard_dims",
     default=None,
     callback=parse_dimensions,
-    help="The dimensions (x, y) for the nonstandard plate"
+    help="The dimensions (x, y) for the nonstandard plate",
 )
 def shuffle(
     sample_file,
@@ -156,7 +158,7 @@ def shuffle(
     fixed_map,
     fixed_map_file,
     nonstandard,
-    nonstandard_dims
+    nonstandard_dims,
 ):
     """
     Generate randomized plate maps from a list of SAMPLE_IDs.
@@ -293,11 +295,10 @@ def _process_plate_data(plate_data, plate_index, trajectories, use_numeric_wells
     "use_numeric_wells",
     is_flag=True,
     default=None,
-    help="Return the plate positions as 1-based column major numeric values."
+    help="Return the plate positions as 1-based column major numeric values.",
 )
 def trace(input_path, output_csv, use_numeric_wells):
     """Trace the samples over their various plates."""
-
     trajectories = {}
 
     # 1. Determine files to process
@@ -339,7 +340,9 @@ def trace(input_path, output_csv, use_numeric_wells):
                     if line.startswith("Plate "):
                         # Process previous plate if it exists
                         if plate_data:
-                            _process_plate_data(plate_data, current_plate_index, trajectories, use_numeric_wells)
+                            _process_plate_data(
+                                plate_data, current_plate_index, trajectories, use_numeric_wells
+                            )
 
                         # Start of new plate
                         try:
@@ -356,7 +359,9 @@ def trace(input_path, output_csv, use_numeric_wells):
 
                 # Process the last plate block
                 if plate_data:
-                    _process_plate_data(plate_data, current_plate_index, trajectories, use_numeric_wells)
+                    _process_plate_data(
+                        plate_data, current_plate_index, trajectories, use_numeric_wells
+                    )
 
         except Exception as e:
             click.echo(f"An error occurred while reading the combined CSV: {e}")
