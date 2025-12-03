@@ -81,8 +81,10 @@ def parse_dimensions(ctx, param, value):
             raise ValueError("Dimensions must be two numbers (rows, cols).")
 
         return (int(parts[0]), int(parts[1]))
-    except Exception:
-        raise click.BadParameter(f"Dimensions must be in format 'rows,cols' (e.g., 8,12). Got: {value}")
+    except Exception as e:
+        raise click.BadParameter(
+            f"Dimensions must be in format 'rows,cols' (e.g., 8,12). Got: {value}"
+        ) from e
 
 
 @click.group()
@@ -142,7 +144,7 @@ def wellshuffled():
     "--nonstandard_dims",
     default=None,
     callback=parse_dimensions,
-    help="The dimensions (x, y) for the nonstandard plate"
+    help="The dimensions (x, y) for the nonstandard plate",
 )
 def shuffle(
     sample_file,
@@ -156,7 +158,7 @@ def shuffle(
     fixed_map,
     fixed_map_file,
     nonstandard,
-    nonstandard_dims
+    nonstandard_dims,
 ):
     """
     Generate randomized plate maps from a list of SAMPLE_IDs.
@@ -171,10 +173,15 @@ def shuffle(
     click.echo("--- Plate Map Generator ---")
 
     # Convert size to integer
-    plate_size = int(size)
+    if nonstandard and nonstandard_dims:
+        plate_size = int(nonstandard_dims[0] * nonstandard_dims[1])
+    else:
+        plate_size = int(size)
 
     # Load samples
-    samples, control_samples = load_sample_ids(sample_file, control_prefix=control_prefix)
+    samples, control_samples, initial_position_map = load_sample_ids(
+        sample_file, control_prefix=control_prefix
+    )
 
     total_samples = len(samples) + len(control_samples)
     click.echo(f"Loaded {total_samples} total samples from {os.path.basename(sample_file)}.")
@@ -184,25 +191,40 @@ def shuffle(
             f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}')."
         )
 
+    # Log that we are using the input well positions for the first plate, don't need to do anything else.
+    if initial_position_map:
+        click.echo("Sample file contains initial plate positions, using it for Plate 1.")
+
+    # Identify if we have a fixed control map (either as input text or a file.)
     if fixed_map or fixed_map_file:
         click.echo(
             "Using MANUALLY DEFINED control map. Skipping Plate 1 randomization for controls."
         )
-
-    # TODO: [mcnaughtonadm|10212025] Clean this logic up, just a temporary fix to get it working. Logic should be a little more robust than this...
-    if fixed_map_file:
-        fixed_map = fixed_map_file
+        if fixed_map_file:
+            fixed_map = fixed_map_file
 
     # Choose the correct mapper class
     if simple:
-        click.echo("Using simple randomization logic.")
+        click.echo("Using simple randomization logic, minimizing repeated samples on the edge.")
         mapper = PlateMapperSimple(
-            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map, nonstandard=nonstandard, nonstandard_dims=nonstandard_dims
+            samples,
+            control_samples,
+            plate_size=plate_size,
+            predefined_control_map=fixed_map,
+            nonstandard=nonstandard,
+            nonstandard_dims=nonstandard_dims,
+            initial_position_map=initial_position_map,
         )
     else:
-        click.echo("Using neighbor-aware randomization logic.")
+        click.echo("Using neighbor-aware randomization logic, minimizing repeated samples on the edge and repeated sample neighbors.")
         mapper = PlateMapperNeighborAware(
-            samples, control_samples, plate_size=plate_size, predefined_control_map=fixed_map, nonstandard=nonstandard, nonstandard_dims=nonstandard_dims
+            samples,
+            control_samples,
+            plate_size=plate_size,
+            predefined_control_map=fixed_map,
+            nonstandard=nonstandard,
+            nonstandard_dims=nonstandard_dims,
+            initial_position_map=initial_position_map,
         )
 
     # Generate plates
@@ -276,11 +298,10 @@ def _process_plate_data(plate_data, plate_index, trajectories, use_numeric_wells
     "use_numeric_wells",
     is_flag=True,
     default=None,
-    help="Return the plate positions as 1-based column major numeric values."
+    help="Return the plate positions as 1-based column major numeric values.",
 )
 def trace(input_path, output_csv, use_numeric_wells):
     """Trace the samples over their various plates."""
-
     trajectories = {}
 
     # 1. Determine files to process
@@ -322,7 +343,9 @@ def trace(input_path, output_csv, use_numeric_wells):
                     if line.startswith("Plate "):
                         # Process previous plate if it exists
                         if plate_data:
-                            _process_plate_data(plate_data, current_plate_index, trajectories, use_numeric_wells)
+                            _process_plate_data(
+                                plate_data, current_plate_index, trajectories, use_numeric_wells
+                            )
 
                         # Start of new plate
                         try:
@@ -339,7 +362,9 @@ def trace(input_path, output_csv, use_numeric_wells):
 
                 # Process the last plate block
                 if plate_data:
-                    _process_plate_data(plate_data, current_plate_index, trajectories, use_numeric_wells)
+                    _process_plate_data(
+                        plate_data, current_plate_index, trajectories, use_numeric_wells
+                    )
 
         except Exception as e:
             click.echo(f"An error occurred while reading the combined CSV: {e}")
