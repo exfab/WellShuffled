@@ -1,7 +1,16 @@
 [project]
 name = "wellshuffled"
 version = "0.1.0"
-description = "Add your description here"
+description = "A command line utility for shuffling biological sample positions in microwell plates."
+authors = [
+  { name = "Andrew McNaughton", email = "mcnaughtonadm@gmail.com"},
+]
+maintainers = [
+  { name = "Andrew McNaughton", email = "mcnaughtonadm@gmail.com"},
+]
+
+license = { text = "MIT License"}
+keywords = ["microwell plate", "plate randomization"]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,16 +18,27 @@ dependencies = [
     "numpy>=2.3.3",
 ]
 
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+]
+
+[project.urls]
+Homepage = "https://github.com/exlab/wellshuffled"
+Repository = "https://github.com/exlab/wellshuffled.git"
+Issues = "https://github.com/exlab/wellshuffled/issues"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
 
 [dependency-groups]
 dev = [
     "isort>=6.1.0",
     "mypy>=1.18.2",
     "pylsp-mypy>=0.7.0",
+    "pyroma>=5.0",
     "pytest>=8.4.2",
     "python-lsp-ruff>=2.3.0",
     "python-lsp-server>=1.13.1",
@@ -27,7 +47,6 @@ dev = [
 
 [project.scripts]
 wellshuffled = "wellshuffled.cli:wellshuffled"
-
 
 [tool.isort]
 profile = "black"
