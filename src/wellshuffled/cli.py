@@ -16,8 +16,31 @@ from wellshuffled.utilities import (
 )
 
 
-def parse_fixed_map(ctx, param, value):
-    """Parse the --fixed-map string into a dictionary of {WELL: SAMPLE_ID}."""
+def parse_fixed_map(
+    ctx: click.Context, param: click.Parameter, value: str
+) -> dict[str, str] | None:
+    """Parse the --fixed-map string into a dictionary of {WELL: SAMPLE_ID}.
+
+    Parameters
+    ----------
+    ctx : click.Context
+        The click context.
+    param : click.Parameter
+        The click parameter.
+    value : str
+        The value of the --fixed-map option.
+
+    Returns
+    -------
+    dict[str, str] | None
+        A dictionary mapping well positions to sample IDs, or None if the
+        value is empty.
+
+    Raises
+    ------
+    click.BadParameter
+        If the --fixed-map string is malformed.
+    """
     if not value:
         return None
 
@@ -46,8 +69,31 @@ def parse_fixed_map(ctx, param, value):
         raise click.BadParameter(f"Could not parse --fixed-map string: {e}") from None
 
 
-def parse_fixed_map_file(ctx, param, value):
-    """Parse the --fixed-map-file path and load data."""
+def parse_fixed_map_file(
+    ctx: click.Context, param: click.Parameter, value: str
+) -> dict[str, str] | None:
+    """Parse the --fixed-map-file path and load data.
+
+    Parameters
+    ----------
+    ctx : click.Context
+        The click context.
+    param : click.Parameter
+        The click parameter.
+    value : str
+        The value of the --fixed-map-file option.
+
+    Returns
+    -------
+    dict[str, str] | None
+        A dictionary mapping well positions to sample IDs, or None if the
+        value is empty.
+
+    Raises
+    ------
+    click.BadParameter
+        If the file is not found or cannot be parsed.
+    """
     if not value:
         return None
 
@@ -62,8 +108,31 @@ def parse_fixed_map_file(ctx, param, value):
         raise click.BadParameter(f"Error reading fixed map file '{value}': {e}") from e
 
 
-def parse_dimensions(ctx, param, value):
-    """Parse a string like '8,12' or '8x12' into a tuple (rows, cols)."""
+def parse_dimensions(
+    ctx: click.Context, param: click.Parameter, value: str
+) -> tuple[int, int] | None:
+    """Parse a string like '8,12' or '8x12' into a tuple (rows, cols).
+
+    Parameters
+    ----------
+    ctx : click.Context
+        The click context.
+    param : click.Parameter
+        The click parameter.
+    value : str
+        The value of the --nonstandard_dims option.
+
+    Returns
+    -------
+    tuple[int, int] | None
+        A tuple containing the number of rows and columns, or None if the
+        value is empty.
+
+    Raises
+    ------
+    click.BadParameter
+        If the dimensions string is malformed.
+    """
     if not value:
         return None
 
@@ -89,7 +158,7 @@ def parse_dimensions(ctx, param, value):
 
 @click.group()
 def wellshuffled():
-    """Entrypoint to shuffle group."""
+    """CLI for generating randomized plate maps."""
     click.echo("WellShuffled: A tool for generating randomized plate maps.")
 
 
@@ -147,24 +216,47 @@ def wellshuffled():
     help="The dimensions (x, y) for the nonstandard plate",
 )
 def shuffle(
-    sample_file,
-    output_path,
-    plates,
-    size,
-    simple,
-    separate_files,
-    seed,
-    control_prefix,
-    fixed_map,
-    fixed_map_file,
-    nonstandard,
-    nonstandard_dims,
-):
-    """
-    Generate randomized plate maps from a list of SAMPLE_IDs.
+    sample_file: str,
+    output_path: str,
+    plates: int,
+    size: str,
+    simple: bool,
+    separate_files: bool,
+    seed: int | None,
+    control_prefix: str | None,
+    fixed_map: dict[str, str] | None,
+    fixed_map_file: dict[str, str] | None,
+    nonstandard: bool,
+    nonstandard_dims: tuple[int, int] | None,
+) -> None:
+    """Generate randomized plate maps from a list of sample IDs.
 
-    SAMPLE_FILE: A text file with one sample ID per line.
-    OUTPUT_PATH: The path for the output CSV file or directory (if using --separate-files).
+    Parameters
+    ----------
+    sample_file : str
+        Path to a text file with one sample ID per line.
+    output_path : str
+        Path for the output CSV file or directory.
+    plates : int
+        Number of plates to generate.
+    size : str
+        Well plate size (96 or 384).
+    simple : bool
+        Use simple randomization (disables neighbor-awareness).
+    separate_files : bool
+        Save each plate map to a separate CSV file in a directory.
+    seed : int, optional
+        Set the random seed for reproducible results.
+    control_prefix : str, optional
+        Prefix used to identify control/blank samples in the sample file.
+    fixed_map : dict[str, str], optional
+        Manually specify fixed control locations.
+    fixed_map_file : str, optional
+        Path to a CSV file with fixed control locations.
+    nonstandard : bool
+        Allow for the use of non-standard plate dimensions.
+    nonstandard_dims : tuple[int, int], optional
+        The dimensions (rows, cols) for the nonstandard plate.
     """
     if seed is not None:
         random.seed(seed)
@@ -204,6 +296,7 @@ def shuffle(
             fixed_map = fixed_map_file
 
     # Choose the correct mapper class
+    mapper: PlateMapperSimple | PlateMapperNeighborAware
     if simple:
         click.echo("Using simple randomization logic, minimizing repeated samples on the edge.")
         mapper = PlateMapperSimple(
@@ -216,7 +309,9 @@ def shuffle(
             initial_position_map=initial_position_map,
         )
     else:
-        click.echo("Using neighbor-aware randomization logic, minimizing repeated samples on the edge and repeated sample neighbors.")
+        click.echo(
+            "Using neighbor-aware randomization logic, minimizing repeated samples on the edge and repeated sample neighbors."
+        )
         mapper = PlateMapperNeighborAware(
             samples,
             control_samples,
@@ -249,8 +344,25 @@ def shuffle(
         click.echo(str(mapper.multi_edge_samples))
 
 
-def _process_plate_data(plate_data, plate_index, trajectories, use_numeric_wells=False):
-    """Parse a single plate's rows and update trajectories."""
+def _process_plate_data(
+    plate_data: list[list[str]],
+    plate_index: int,
+    trajectories: dict[str, list[str]],
+    use_numeric_wells: bool | None = False,
+) -> None:
+    """Parse a single plate's rows and update trajectories.
+
+    Parameters
+    ----------
+    plate_data : list[list[str]]
+        A 2D list representing the plate data.
+    plate_index : int
+        The index of the plate being processed.
+    trajectories : dict[str, list[str]]
+        A dictionary to store the sample trajectories.
+    use_numeric_wells : bool, optional
+        A flag to indicate whether to use numeric well positions.
+    """
     # Pull dimensions of plate
     try:
         num_rows = len(plate_data)
@@ -297,12 +409,22 @@ def _process_plate_data(plate_data, plate_index, trajectories, use_numeric_wells
     "--numeric",
     "use_numeric_wells",
     is_flag=True,
-    default=None,
+    default=False,
     help="Return the plate positions as 1-based column major numeric values.",
 )
-def trace(input_path, output_csv, use_numeric_wells):
-    """Trace the samples over their various plates."""
-    trajectories = {}
+def trace(input_path: str, output_csv: str, use_numeric_wells: bool = False) -> None:
+    """Trace the samples over their various plates.
+
+    Parameters
+    ----------
+    input_path : str
+        Path to a directory of plate files or a single combined plate file.
+    output_csv : str, optional
+        Path to save the full trajectory map as a CSV file.
+    use_numeric_wells : bool, optional
+        Return the plate positions as 1-based column major numeric values.
+    """
+    trajectories: dict[str, list[str]] = {}
 
     # 1. Determine files to process
     if os.path.isdir(input_path):
