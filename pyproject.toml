@@ -125,6 +125,7 @@ unfixable = ["B"]
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402"]
 "tests/**" = ["S101"]
+"tests/smoke_test.py" = ["T201", "S404", "S607"]
 "**/{tests,docs,tools}/*" = ["E402"]
 
 [tool.ruff.format]
