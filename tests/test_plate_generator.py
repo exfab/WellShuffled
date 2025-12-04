@@ -15,7 +15,7 @@ SAMPLES = [f"sample-{i + 1}" for i in range(70)]
 CONTROLS = [f"control-{i + 85}" for i in range(12)]
 ALL_SAMPLES = SAMPLES + CONTROLS
 SAMPLE_FILE_CONTENT = "\n".join(ALL_SAMPLES)
-TOTAL_SAMPLES = len(ALL_SAMPLES) # 82 Total Samples
+TOTAL_SAMPLES = len(ALL_SAMPLES)  # 82 Total Samples
 
 # Define a complete manual map for testing the new feature (all 12 controls)
 manual_wells = [f"A{i + 1}" for i in range(12)]
@@ -217,6 +217,7 @@ def test_conflicting_maps():
             initial_position_map=initial_position_map,
         )
 
+
 def test_conflicting_controls():
     """Test that a ValueError is raised when a control sample in the fixed_control_map conflicts with the same control listed in the initial_position_map."""
     initial_position_map = {"A1": "control-85"}
@@ -254,4 +255,3 @@ def test_initial_plate_with_fixed_controls():
     assert plate1[0, 1] == "Sample-2"
     assert plate1[0, 2] == "Control-1"
     assert plate1[0, 3] == "Control-2"
-
