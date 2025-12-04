@@ -141,7 +141,7 @@ If you want to contribute to the development of `wellshuffled`, you can set up a
 1.  **Clone the repository:**
 
     ```
-    git clone https://github.com/exlab/wellshuffled.git
+    git clone https://github.com/exfab/wellshuffled.git
     cd wellshuffled
     ```
 

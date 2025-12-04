@@ -25,9 +25,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/exlab/wellshuffled"
-Repository = "https://github.com/exlab/wellshuffled.git"
-Issues = "https://github.com/exlab/wellshuffled/issues"
+Homepage = "https://github.com/exfab/wellshuffled"
+Repository = "https://github.com/exfab/wellshuffled.git"
+Issues = "https://github.com/exfab/wellshuffled/issues"
 
 [build-system]
 requires = ["hatchling"]
