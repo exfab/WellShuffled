@@ -12,7 +12,52 @@ from wellshuffled.utilities import (
 
 
 class BasePlateMapper(ABC):
-    """Base class for shared PlateMapper functionality."""
+    """Base class for shared PlateMapper functionality.
+
+    Parameters
+    ----------
+    sample_ids : list[str]
+        A list of sample IDs to be placed on the plate.
+    control_sample_ids : list[str]
+        A list of control sample IDs to be placed on the plate.
+    plate_size : int, optional
+        The size of the plate (96 or 384). Default is 96.
+    predefined_control_map : dict[str, str], optional
+        A dictionary mapping well positions to control sample IDs. These
+        positions will be fixed across all generated plates.
+    nonstandard : bool, optional
+        A flag to allow for the use of non-standard plate dimensions.
+    nonstandard_dims : tuple[int, int], optional
+        The dimensions (rows, cols) for the nonstandard plate.
+    initial_position_map : dict[str, str], optional
+        A dictionary mapping well positions to sample IDs for the first plate.
+
+    Attributes
+    ----------
+    samples : list[str]
+        A list of variable sample IDs.
+    control_samples : list[str]
+        A list of control sample IDs.
+    all_samples : list[str]
+        A list of all sample IDs.
+    initial_position_map : dict[str, str] | None
+        A dictionary mapping well positions to sample IDs for the first plate.
+    plate_dims : tuple[int, int]
+        The dimensions of the plate (rows, cols).
+    plate_size : int
+        The total number of wells on the plate.
+    fixed_control_map : dict[tuple[int, int], str]
+        A dictionary mapping (row, col) tuples to control sample IDs.
+    is_control_map_fixed : bool
+        A flag indicating whether the control map is fixed.
+    partial_plate : bool
+        A flag indicating whether the plate is partially filled.
+    used_edge_samples : set[str]
+        A set of samples that have been used on the edge of a plate.
+    multi_edge_samples : list[list[str]]
+        A list of lists of samples that have been used on the edge of a plate
+        more than once.
+    """
 
     def __init__(
         self,
@@ -113,11 +158,23 @@ class BasePlateMapper(ABC):
 
     @abstractmethod
     def generate_plate(self) -> np.ndarray:
-        """Abstract method to generate a single plate map. Must be implemented by subclasses."""
+        """Generate a single randomized plate map.
+
+        Returns
+        -------
+        np.ndarray
+            A 2D numpy array representing the plate map.
+        """
         pass
 
     def _generate_initial_position_plate(self) -> np.ndarray:
-        """Generate a plate from the initial position map."""
+        """Generate a plate from the initial position map.
+
+        Returns
+        -------
+        np.ndarray
+            A 2D numpy array representing the plate map.
+        """
         plate = np.full(self.plate_dims, None, dtype=object)
         if self.initial_position_map:
             merged_map = self.initial_position_map.copy()
@@ -136,7 +193,15 @@ class BasePlateMapper(ABC):
         return plate
 
     def _get_perimeter_indices(self) -> tuple[list[tuple], list[tuple]]:
-        """Calculate the (row, col) indices for perimeter and interior well positions."""
+        """Calculate the (row, col) indices for perimeter and interior well positions.
+
+        Returns
+        -------
+        tuple[list[tuple], list[tuple]]
+            A tuple containing two lists:
+            - A list of (row, col) tuples for the perimeter wells.
+            - A list of (row, col) tuples for the interior wells.
+        """
         rows, cols = self.plate_dims
         perimeter_indices = []
         interior_indices = []
@@ -151,7 +216,18 @@ class BasePlateMapper(ABC):
         return perimeter_indices, interior_indices
 
     def generate_multiple_plates(self, num_plates: int) -> list[np.ndarray]:
-        """Generate a specified number of unique plate layouts."""
+        """Generate a specified number of unique plate layouts.
+
+        Parameters
+        ----------
+        num_plates : int
+            The number of plates to generate.
+
+        Returns
+        -------
+        list[np.ndarray]
+            A list of 2D numpy arrays, each representing a plate map.
+        """
         plates = []
         if self.initial_position_map:
             # Generate the first plate from the predefined map
@@ -171,7 +247,7 @@ class BasePlateMapper(ABC):
 
 
 class PlateMapperSimple(BasePlateMapper):
-    """Generates and manages randomized plate maps for plate dimensions w/o neighbor-awareness."""
+    """Generate and manage randomized plate maps without neighbor-awareness."""
 
     def __init__(
         self,
@@ -194,7 +270,13 @@ class PlateMapperSimple(BasePlateMapper):
         )
 
     def generate_plate(self) -> np.ndarray:
-        """Generate a single randomized plate map."""
+        """Generate a single randomized plate map.
+
+        Returns
+        -------
+        np.ndarray
+            A 2D numpy array representing the plate map.
+        """
         plate = np.full(self.plate_dims, None, dtype=object)
 
         if self.is_control_map_fixed:
@@ -309,7 +391,13 @@ class PlateMapperSimple(BasePlateMapper):
 
 
 class PlateMapperNeighborAware(BasePlateMapper):
-    """Generate Plate maps with neighbor-awareness to minimize re-neighboring."""
+    """Generate plate maps with neighbor-awareness to minimize re-neighboring.
+
+    Attributes
+    ----------
+    neighbor_pairs : set[tuple[str, str]]
+        A set of tuples, each containing a pair of neighboring samples.
+    """
 
     def __init__(
         self,
@@ -333,7 +421,22 @@ class PlateMapperNeighborAware(BasePlateMapper):
         self.neighbor_pairs: set[tuple[str, str]] = set()
 
     def _get_neighbors(self, r: int, c: int, plate: np.ndarray) -> list[str]:
-        """Get the existing, non-empty neighbors of a given well."""
+        """Get the existing, non-empty neighbors of a given well.
+
+        Parameters
+        ----------
+        r : int
+            The row index of the well.
+        c : int
+            The column index of the well.
+        plate : np.ndarray
+            The plate map.
+
+        Returns
+        -------
+        list[str]
+            A list of the sample IDs of the neighbors.
+        """
         neighbors = []
         rows, cols = self.plate_dims
 
@@ -344,7 +447,13 @@ class PlateMapperNeighborAware(BasePlateMapper):
         return neighbors
 
     def _update_neighbor_state(self, plate: np.ndarray):
-        """Scan a completed plate and add all the neighbor pairs to the state."""
+        """Scan a completed plate and add all the neighbor pairs to the state.
+
+        Parameters
+        ----------
+        plate : np.ndarray
+            The plate map to scan.
+        """
         rows, cols = self.plate_dims
         for r in range(rows):
             for c in range(cols):
@@ -365,7 +474,13 @@ class PlateMapperNeighborAware(BasePlateMapper):
                     self.neighbor_pairs.add(pair)
 
     def generate_plate(self) -> np.ndarray:
-        """Generate a single plate using a constrained randomization approach."""
+        """Generate a single plate using a constrained randomization approach.
+
+        Returns
+        -------
+        np.ndarray
+            A 2D numpy array representing the plate map.
+        """
         plate = np.full(self.plate_dims, None, dtype=object)
         recycled_on_this_plate = []
 
