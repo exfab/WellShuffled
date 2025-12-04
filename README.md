@@ -1,6 +1,6 @@
 # WellShuffled 🎲
 
------
+---
 
 ## Installation
 
@@ -29,7 +29,7 @@ pip install git+https://github.com/exfab/wellshuffled.git
     pip install .
     ```
 
------
+---
 
 ## Usage
 
@@ -51,18 +51,18 @@ wellshuffled shuffle <sample_file> <output_path> [OPTIONS]
 
 **Options:**
 
-*   `--plates, -n`: Number of plates to generate. Default is 1.
-*   `--size`: Well plate size (96 or 384). Default is 96.
-*   `--simple`: Use simple randomization (disables neighbor-awareness).
-*   `--separate-files`: Save each plate map to a separate CSV file.
-*   `--seed`: Set the random seed for reproducible results.
-*   `--control-prefix`: Prefix used to identify control samples.
-*   `--fixed-map`: Manually specify fixed control locations (e.g.,
-    "A1:control-85,H12:control-96").
-*   `--fixed-map-file`: Manually specify fixed control locations from a CSV
-    file.
-*   `--nonstandard`: Allow for the use of non-standard plate dimensions.
-*   `--nonstandard_dims`: The dimensions (x, y) for the nonstandard plate.
+- `--plates, -n`: Number of plates to generate. Default is 1.
+- `--size`: Well plate size (96 or 384). Default is 96.
+- `--simple`: Use simple randomization (disables neighbor-awareness).
+- `--separate-files`: Save each plate map to a separate CSV file.
+- `--seed`: Set the random seed for reproducible results.
+- `--control-prefix`: Prefix used to identify control samples.
+- `--fixed-map`: Manually specify fixed control locations (e.g.,
+  "A1:control-85,H12:control-96").
+- `--fixed-map-file`: Manually specify fixed control locations from a CSV
+  file.
+- `--nonstandard`: Allow for the use of non-standard plate dimensions.
+- `--nonstandard_dims`: The dimensions (x, y) for the nonstandard plate.
 
 ### `trace` Command
 
@@ -74,10 +74,10 @@ wellshuffled trace <input_path> [OPTIONS]
 
 **Options:**
 
-*   `--output-csv`: Optional path to save the full trajectory map as a CSV
-    file.
-*   `--numeric`: Return the plate positions as 1-based column major numeric
-    values.
+- `--output-csv`: Optional path to save the full trajectory map as a CSV
+  file.
+- `--numeric`: Return the plate positions as 1-based column major numeric
+  values.
 
 ### Examples
 
@@ -158,14 +158,15 @@ If you want to contribute to the development of `wellshuffled`, you can set up a
     If you encounter errors with `uv sync`, you can install the project manually in editable mode:
 
     Using `uv`:
+
     ```
     uv run python -m pip install -e .
     ```
 
     Using `venv`:
+
     ```
     python -m venv .venv
     source .venv/bin/activate
     python -m pip install -e .
     ```
-
