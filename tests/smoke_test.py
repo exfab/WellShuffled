@@ -15,7 +15,7 @@ def main():
         # It's good practice to run the command with a version or help flag
         # to check that it's installed and executable.
         result = subprocess.run(
-            ["wellshuffled", "--version"],
+            ["wellshuffled", "--help"],
             check=True,
             capture_output=True,
             text=True,
