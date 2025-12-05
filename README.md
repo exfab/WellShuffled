@@ -2,17 +2,46 @@
 
 ---
 
+## Quickstart
+
+1.  Create a simple `samples.txt` file:
+
+    ```bash
+    echo -e "SampleA\nSampleB\nSampleC\nSampleD" > samples.txt
+    ```
+
+2.  Run `wellshuffled` using `uvx` to instantly generate a plate map:
+
+    ```bash
+    uvx wellshuffled shuffle samples.txt my_first_plate.csv
+    ```
+
+3.  View your new plate map!
+    ```bash
+    cat my_first_plate.csv
+    ```
+
+---
+
 ## Installation
 
 There are two ways to install `wellshuffled`:
 
-**Option 1: Install from GitLab using `pip`**
+**Option 1: Install using `uv` or `pip`**
 
-You can install the latest version of `wellshuffled` directly from GitLab by
-running the following command:
+You can install the latest version of `wellshuffled` by running the following
+commands:
+
+1. **Using `uv`:**
 
 ```
-pip install git+https://github.com/exfab/wellshuffled.git
+uv pip install wellshuffled
+```
+
+2. **Using `pip`:**
+
+```
+pip install wellshuffled
 ```
 
 **Option 2: Install from a local clone**
@@ -80,6 +109,9 @@ wellshuffled trace <input_path> [OPTIONS]
   values.
 
 ### Examples
+
+_Note: The following examples assume you have cloned the repository and are
+running the commands from the project's root directory._
 
 **1. Generate a single 96-well plate with neighbor-awareness:**
 
