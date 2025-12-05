@@ -231,32 +231,9 @@ def shuffle(
 ) -> None:
     """Generate randomized plate maps from a list of sample IDs.
 
-    Parameters
-    ----------
-    sample_file : str
-        Path to a text file with one sample ID per line.
-    output_path : str
-        Path for the output CSV file or directory.
-    plates : int
-        Number of plates to generate.
-    size : str
-        Well plate size (96 or 384).
-    simple : bool
-        Use simple randomization (disables neighbor-awareness).
-    separate_files : bool
-        Save each plate map to a separate CSV file in a directory.
-    seed : int, optional
-        Set the random seed for reproducible results.
-    control_prefix : str, optional
-        Prefix used to identify control/blank samples in the sample file.
-    fixed_map : dict[str, str], optional
-        Manually specify fixed control locations.
-    fixed_map_file : str, optional
-        Path to a CSV file with fixed control locations.
-    nonstandard : bool
-        Allow for the use of non-standard plate dimensions.
-    nonstandard_dims : tuple[int, int], optional
-        The dimensions (rows, cols) for the nonstandard plate.
+    Arguments:
+      SAMPLE_FILE: Path to a text file with one sample ID per line.
+      OUTPUT_PATH: Path for the output CSV file or directory where files will be saved.
     """
     if seed is not None:
         random.seed(seed)
@@ -413,16 +390,10 @@ def _process_plate_data(
     help="Return the plate positions as 1-based column major numeric values.",
 )
 def trace(input_path: str, output_csv: str, use_numeric_wells: bool = False) -> None:
-    """Trace the samples over their various plates.
+    """Trace sample locations across one or more plate map files.
 
-    Parameters
-    ----------
-    input_path : str
-        Path to a directory of plate files or a single combined plate file.
-    output_csv : str, optional
-        Path to save the full trajectory map as a CSV file.
-    use_numeric_wells : bool, optional
-        Return the plate positions as 1-based column major numeric values.
+    Arguments:
+      INPUT_PATH: Path to a directory of plate files or a single combined plate file.
     """
     trajectories: dict[str, list[str]] = {}
 
