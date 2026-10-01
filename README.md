@@ -93,8 +93,7 @@ wellshuffled shuffle <sample_file> <output_path> [OPTIONS]
   "A1:control-85,H12:control-96").
 - `--fixed-map-file`: Manually specify fixed control locations from a CSV file.
 - `--nonstandard`: Allow for the use of non-standard plate dimensions.
-- `--nonstandard-dims`, `--nonstandard_dims`: The dimensions (x, y) for the
-  nonstandard plate. Both spellings are accepted.
+- `--nonstandard-dims`: The dimensions (x, y) for the nonstandard plate.
 
 Plates with more than 26 rows are supported, and follow the convention used by
 1536-well plates: rows are labelled `A` through `Z`, then continue with multiple

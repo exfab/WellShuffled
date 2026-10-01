@@ -1,6 +1,6 @@
 [project]
 name = "wellshuffled"
-version = "0.2.0"
+version = "0.2.1"
 description = "A command line utility for shuffling biological sample positions in microwell plates."
 authors = [
   { name = "Andrew McNaughton", email = "mcnaughtonadm@gmail.com"},
