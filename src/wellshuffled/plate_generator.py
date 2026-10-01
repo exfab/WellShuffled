@@ -120,6 +120,12 @@ class BasePlateMapper(ABC):
         self.used_edge_samples: set[str] = set()
         self.multi_edge_samples: list[list[str]] = []
 
+        # Put both well maps into one standard form now that the plate size is known.
+        # A well can be spelled several ways (1, A1, A01, a1 all name the same well), so
+        # comparing the raw keys would report false conflicts and silently drop samples.
+        self.initial_position_map = self._standardize_wells(self.initial_position_map)
+        predefined_control_map = self._standardize_wells(predefined_control_map)
+
         # If the positions of the controls were predefined, store their positions in the fixed_control_map
         if self.initial_position_map and predefined_control_map:
             # Create a reverse map for the initial position map for easier lookup
@@ -156,6 +162,45 @@ class BasePlateMapper(ABC):
         elif not self.control_samples:
             # If no controls, no map needed.
             self.is_control_map_fixed = True
+
+    def _standardize_wells(self, well_map: dict[str, str] | None) -> dict[str, str] | None:
+        """Rewrite well keys into a single canonical form for this plate.
+
+        Every accepted spelling of a well ('1', 'A1', 'A01', 'a1') resolves to the
+        same well, so keys are canonicalized before any two maps are compared or
+        merged. Otherwise a sample can be silently dropped when it collides with a
+        control under a different spelling of the same well.
+
+        Parameters
+        ----------
+        well_map : dict[str, str] or None
+            A mapping of well position strings to sample IDs.
+
+        Returns
+        -------
+        dict[str, str]
+            The same mapping with keys rewritten to canonical well positions, or
+            None if well_map was None.
+
+        Raises
+        ------
+        ValueError
+            If a well is invalid or out of bounds for this plate, or if two entries
+            name the same well.
+        """
+        if well_map is None:
+            return None
+
+        canonical: dict[str, str] = {}
+        originals: dict[str, str] = {}
+        for well, sample_id in well_map.items():
+            r, c = well_to_index(well, self.plate_dims)
+            key = f"{row_index_to_letters(r)}{c + 1}"
+            if key in canonical:
+                raise ValueError(f"Positions '{originals[key]}' and '{well}' both name well {key}.")
+            canonical[key] = sample_id
+            originals[key] = well
+        return canonical
 
     @abstractmethod
     def generate_plate(self) -> np.ndarray:

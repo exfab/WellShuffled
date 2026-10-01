@@ -313,6 +313,48 @@ def test_conflicting_controls():
         )
 
 
+@pytest.mark.parametrize("initial_well", ["1", "A01", "a1"])
+def test_matching_maps_with_different_well_spellings_do_not_conflict(initial_well):
+    """Test that both maps placing a control in the same well agree, however that well is spelled."""
+    mapper = PlateMapperSimple(
+        ["sample-1"],
+        ["control-85"],
+        plate_size=96,
+        predefined_control_map={"A1": "control-85"},
+        initial_position_map={initial_well: "control-85", "B1": "sample-1"},
+    )
+
+    plate1 = mapper.generate_multiple_plates(1)[0]
+    assert plate1[0, 0] == "control-85"
+    assert plate1[1, 0] == "sample-1"
+
+
+@pytest.mark.parametrize("initial_well", ["1", "A01", "a1"])
+def test_conflicting_maps_with_different_well_spellings(initial_well):
+    """Test that a sample and a fixed control claiming the same well conflict, however that well is spelled."""
+    with pytest.raises(ValueError):
+        PlateMapperSimple(
+            ["sample-1"],
+            ["control-85"],
+            plate_size=96,
+            predefined_control_map={"A1": "control-85"},
+            initial_position_map={initial_well: "sample-1"},
+        )
+
+
+@pytest.mark.parametrize("spellings", [("1", "A1"), ("A01", "A1"), ("a1", "A1")])
+def test_initial_position_map_rejects_one_well_spelled_two_ways(spellings):
+    """Test that two samples in the same well are rejected even when the well is spelled differently."""
+    first, second = spellings
+    with pytest.raises(ValueError):
+        PlateMapperSimple(
+            ["sample-1", "sample-2"],
+            [],
+            plate_size=96,
+            initial_position_map={first: "sample-1", second: "sample-2"},
+        )
+
+
 def test_initial_plate_with_fixed_controls():
     """Test that the first plate is generated correctly when both an initial_position_map and a fixed_control_map are provided."""
     initial_position_map = {

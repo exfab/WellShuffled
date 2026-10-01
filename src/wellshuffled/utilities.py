@@ -7,6 +7,26 @@ import click
 import numpy as np
 
 
+def normalize_well_key(well: str) -> str:
+    """Normalize the case of an ASCII well position without Unicode case-mapping.
+
+    ``str.upper()`` folds some non-ASCII letters onto ASCII ones (e.g. 'ı' becomes
+    'I'), which would let a well outside A-Z pass validation as a real one. Non-ASCII
+    input is returned unchanged so that well_to_index rejects it.
+
+    Parameters
+    ----------
+    well : str
+        The well position to normalize.
+
+    Returns
+    -------
+    str
+        The upper-cased well if it is ASCII, otherwise the original unchanged.
+    """
+    return well.upper() if well.isascii() else well
+
+
 def letters_to_row_index(letters: str) -> int:
     """Convert a row label into its 0-based row index.
 
@@ -251,7 +271,7 @@ def load_control_map_from_csv(filename: str) -> dict[str, str]:
                     f"Fixed map file '{filename}' row {i} is missing data. Expected 'Well,Sample ID'."
                 )
 
-            well_pos = row[0].strip().upper()
+            well_pos = normalize_well_key(row[0].strip())
             sample_id = row[1].strip()
 
             if not well_pos or not sample_id:
@@ -317,7 +337,7 @@ def load_sample_ids(
 
             if len(row) > 1 and row[1].strip():
                 has_initial_position_map = True
-                well_pos = row[1].strip().upper()
+                well_pos = normalize_well_key(row[1].strip())
                 # Check if the position is unique in the provided file (can't have 2 samples in 1 position)
                 if well_pos in initial_position_map:
                     raise ValueError(
