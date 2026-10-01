@@ -77,6 +77,112 @@ def test_shuffle_reports_clean_error_for_a_duplicate_well_in_the_sample_file(tmp
     assert "duplicated" in result.output
 
 
+@pytest.mark.parametrize("well", ["ı1", "ſ1"])
+def test_shuffle_rejects_non_ascii_well_in_sample_file(tmp_path, well):
+    """A sample-file well that Unicode upper-casing would turn into a real well (ı1 -> I1) is rejected.
+
+    The 20-row plate makes both I1 and S1 (from ſ1) real wells, so rejection must come
+    from the non-ASCII input itself rather than an out-of-bounds row.
+    """
+    sample_file = tmp_path / "samples.csv"
+    sample_file.write_text(f"sample-1,{well}\nsample-2,A2")
+    out = tmp_path / "out.csv"
+
+    result = CliRunner().invoke(
+        wellshuffled,
+        ["shuffle", str(sample_file), str(out), "--nonstandard", "--nonstandard_dims", "20,24"],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("well", ["ı1", "ſ1"])
+def test_shuffle_rejects_non_ascii_well_in_fixed_map(tmp_path, well):
+    """A --fixed-map well that Unicode upper-casing would turn into a real well is rejected."""
+    sample_file = tmp_path / "samples.txt"
+    sample_file.write_text("sample-1\ncontrol-1")
+    out = tmp_path / "out.csv"
+
+    result = CliRunner().invoke(
+        wellshuffled,
+        [
+            "shuffle",
+            str(sample_file),
+            str(out),
+            "--nonstandard",
+            "--nonstandard_dims",
+            "20,24",
+            "--control-prefix",
+            "control-",
+            "--fixed-map",
+            f"{well}:control-1",
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("well", ["ı1", "ſ1"])
+def test_shuffle_rejects_non_ascii_well_in_fixed_map_file(tmp_path, well):
+    """A --fixed-map-file well that Unicode upper-casing would turn into a real well is rejected."""
+    sample_file = tmp_path / "samples.txt"
+    sample_file.write_text("sample-1\ncontrol-1")
+    map_file = tmp_path / "controls.csv"
+    map_file.write_text(f"WellPos,SampleID\n{well},control-1")
+    out = tmp_path / "out.csv"
+
+    result = CliRunner().invoke(
+        wellshuffled,
+        [
+            "shuffle",
+            str(sample_file),
+            str(out),
+            "--nonstandard",
+            "--nonstandard_dims",
+            "20,24",
+            "--control-prefix",
+            "control-",
+            "--fixed-map-file",
+            str(map_file),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("initial_well", ["1", "A01"])
+def test_shuffle_reports_conflict_between_sample_file_and_fixed_map_across_spellings(
+    tmp_path, initial_well
+):
+    """A sample and a fixed control in the same well (spelled differently) is a conflict, not a silent drop."""
+    sample_file = tmp_path / "samples.csv"
+    sample_file.write_text(f"sampleX,{initial_well}\ncontrol-1")
+    out = tmp_path / "out.csv"
+
+    result = CliRunner().invoke(
+        wellshuffled,
+        [
+            "shuffle",
+            str(sample_file),
+            str(out),
+            "--control-prefix",
+            "control-",
+            "--fixed-map",
+            "A1:control-1",
+            "--seed",
+            "1",
+        ],
+    )
+
+    # Today this exits 0 and Plate 1 has control-1 in A1 with sampleX nowhere on it.
+    assert result.exit_code == 2, result.output
+    assert "different" in result.output
+    assert not out.exists()
+
+
 def test_shuffle_reports_clean_error_for_a_non_control_in_the_fixed_map(tmp_path):
     """A fixed map naming a sample that is not a control reports a usage error, not a traceback."""
     sample_file = tmp_path / "samples.txt"

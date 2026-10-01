@@ -11,6 +11,7 @@ from wellshuffled.utilities import (
     convert_position_to_well_number,
     load_control_map_from_csv,
     load_sample_ids,
+    normalize_well_key,
     row_index_to_letters,
     save_all_plates_to_single_csv,
     save_plate_to_csv,
@@ -62,7 +63,7 @@ def parse_fixed_map(
                 raise ValueError(f"Each assignment must be in WELL:SAMPLE_ID format. Got '{pair}'.")
 
             well, sample_id = parts
-            fixed_map[well.upper()] = sample_id.strip()
+            fixed_map[normalize_well_key(well)] = sample_id.strip()
 
         return fixed_map
     except Exception as e:
