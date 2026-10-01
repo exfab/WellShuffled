@@ -122,7 +122,7 @@ def parse_dimensions(
     param : click.Parameter
         The click parameter.
     value : str
-        The value of the --nonstandard_dims option.
+        The value of the --nonstandard-dims option.
 
     Returns
     -------
@@ -214,8 +214,6 @@ def wellshuffled():
 )
 @click.option(
     "--nonstandard-dims",
-    "--nonstandard_dims",
-    "nonstandard_dims",
     default=None,
     callback=parse_dimensions,
     help="The dimensions (x, y) for the nonstandard plate",
