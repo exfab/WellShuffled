@@ -220,3 +220,16 @@ __marimo__/
 
 # Gemini CLI
 GEMINI.md
+
+# Scratch output from manual runs, at the repo root only. Paths are anchored with a
+# leading slash so that example_files/*.csv (tracked sample inputs) stay visible.
+# Deliberately not ignored: samples.txt, which is a sample-ID input, not output.
+/output.csv
+/woah.csv
+/simple_run.csv
+/nonstandard_layout.csv
+/96_run_simple.csv
+/60_run*.csv
+/plate_maps
+/plate_maps.csv
+/plate_outputs/
