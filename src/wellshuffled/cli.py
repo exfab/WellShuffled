@@ -412,7 +412,7 @@ def trace(input_path: str, output_csv: str, use_numeric_wells: bool = False) -> 
         # Process separate files sequentially
         for i, file_path in enumerate(file_paths, start=1):
             try:
-                with open(file_path, "r", newline="") as f:
+                with open(file_path, "r", newline="", encoding="utf-8") as f:
                     reader = csv.reader(f)
                     plate_data = list(reader)
                     _process_plate_data(plate_data, i, trajectories, use_numeric_wells)
@@ -427,7 +427,7 @@ def trace(input_path: str, output_csv: str, use_numeric_wells: bool = False) -> 
         plate_data = []
 
         try:
-            with open(input_path, "r") as f:
+            with open(input_path, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -482,7 +482,7 @@ def trace(input_path: str, output_csv: str, use_numeric_wells: bool = False) -> 
     # Save results to CSV file
     if output_csv:
         try:
-            with open(output_csv, "w", newline="") as csvfile:
+            with open(output_csv, "w", newline="", encoding="utf-8") as csvfile:
                 writer = csv.writer(csvfile)
 
                 header = ["Sample_ID"] + [f"Plate {i + 1}" for i in range(num_plates)]

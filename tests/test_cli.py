@@ -12,7 +12,7 @@ from wellshuffled.cli import wellshuffled
 def oversized_sample_file(tmp_path):
     """Create a sample file holding more samples than a 96-well plate can hold."""
     p = tmp_path / "too_many_samples.txt"
-    p.write_text("\n".join(f"sample-{i + 1}" for i in range(100)))
+    p.write_text("\n".join(f"sample-{i + 1}" for i in range(100)), encoding="utf-8")
     return str(p)
 
 
@@ -20,7 +20,7 @@ def test_shuffle_and_trace_support_a_plate_with_more_than_26_rows(tmp_path):
     """Trace labels every row of a full 32-row plate A..Z then AA..AF."""
     sample_file = tmp_path / "samples.txt"
     # Filling every well makes the expected set of row labels seed-independent.
-    sample_file.write_text("\n".join(f"sample-{i + 1}" for i in range(32 * 48)))
+    sample_file.write_text("\n".join(f"sample-{i + 1}" for i in range(32 * 48)), encoding="utf-8")
     plate_map = tmp_path / "plate_map.csv"
     trace_csv = tmp_path / "trace.csv"
 
@@ -47,7 +47,7 @@ def test_shuffle_and_trace_support_a_plate_with_more_than_26_rows(tmp_path):
 
     # Row labels must be letters only, never the punctuation chr() used to produce.
     row_labels = set()
-    for line in trace_csv.read_text().splitlines()[1:]:
+    for line in trace_csv.read_text(encoding="utf-8").splitlines()[1:]:
         match = re.search(r",([A-Za-z]+)\d+$", line)
         assert match, f"unparseable trace row: {line}"
         row_labels.add(match.group(1))
@@ -66,7 +66,7 @@ def test_shuffle_and_trace_support_a_plate_with_more_than_26_rows(tmp_path):
 def test_shuffle_reports_clean_error_for_a_duplicate_well_in_the_sample_file(tmp_path, rows):
     """A sample file placing two samples in one well reports a usage error, not a traceback."""
     sample_file = tmp_path / "samples.csv"
-    sample_file.write_text("\n".join(rows))
+    sample_file.write_text("\n".join(rows), encoding="utf-8")
 
     result = CliRunner().invoke(
         wellshuffled, ["shuffle", str(sample_file), str(tmp_path / "out.csv")]
@@ -85,7 +85,7 @@ def test_shuffle_rejects_non_ascii_well_in_sample_file(tmp_path, well):
     non-ASCII input rather than an out-of-bounds row.
     """
     sample_file = tmp_path / "samples.csv"
-    sample_file.write_text(f"sample-1,{well}\nsample-2,A2")
+    sample_file.write_text(f"sample-1,{well}\nsample-2,A2", encoding="utf-8")
     out = tmp_path / "out.csv"
 
     result = CliRunner().invoke(
@@ -101,7 +101,7 @@ def test_shuffle_rejects_non_ascii_well_in_sample_file(tmp_path, well):
 def test_shuffle_rejects_non_ascii_well_in_fixed_map(tmp_path, well):
     """A --fixed-map well that Unicode upper-casing would turn into a real well is rejected."""
     sample_file = tmp_path / "samples.txt"
-    sample_file.write_text("sample-1\ncontrol-1")
+    sample_file.write_text("sample-1\ncontrol-1", encoding="utf-8")
     out = tmp_path / "out.csv"
 
     result = CliRunner().invoke(
@@ -128,9 +128,9 @@ def test_shuffle_rejects_non_ascii_well_in_fixed_map(tmp_path, well):
 def test_shuffle_rejects_non_ascii_well_in_fixed_map_file(tmp_path, well):
     """A --fixed-map-file well that Unicode upper-casing would turn into a real well is rejected."""
     sample_file = tmp_path / "samples.txt"
-    sample_file.write_text("sample-1\ncontrol-1")
+    sample_file.write_text("sample-1\ncontrol-1", encoding="utf-8")
     map_file = tmp_path / "controls.csv"
-    map_file.write_text(f"WellPos,SampleID\n{well},control-1")
+    map_file.write_text(f"WellPos,SampleID\n{well},control-1", encoding="utf-8")
     out = tmp_path / "out.csv"
 
     result = CliRunner().invoke(
@@ -159,7 +159,7 @@ def test_shuffle_reports_conflict_between_sample_file_and_fixed_map_across_spell
 ):
     """A sample and a fixed control in the same well (spelled differently) is a conflict, not a silent drop."""
     sample_file = tmp_path / "samples.csv"
-    sample_file.write_text(f"sampleX,{initial_well}\ncontrol-1")
+    sample_file.write_text(f"sampleX,{initial_well}\ncontrol-1", encoding="utf-8")
     out = tmp_path / "out.csv"
 
     result = CliRunner().invoke(
@@ -185,7 +185,9 @@ def test_shuffle_reports_conflict_between_sample_file_and_fixed_map_across_spell
 def test_shuffle_reports_clean_error_for_a_non_control_in_the_fixed_map(tmp_path):
     """A fixed map naming a sample that is not a control reports a usage error, not a traceback."""
     sample_file = tmp_path / "samples.txt"
-    sample_file.write_text("\n".join([*[f"sample-{i}" for i in range(1, 20)], "control-1"]))
+    sample_file.write_text(
+        "\n".join([*[f"sample-{i}" for i in range(1, 20)], "control-1"]), encoding="utf-8"
+    )
 
     result = CliRunner().invoke(
         wellshuffled,
@@ -207,7 +209,9 @@ def test_shuffle_reports_clean_error_for_a_non_control_in_the_fixed_map(tmp_path
 def test_shuffle_reports_clean_error_for_a_well_outside_the_plate(tmp_path):
     """A fixed map naming a well the plate does not have reports a usage error, not a traceback."""
     sample_file = tmp_path / "samples.txt"
-    sample_file.write_text("\n".join([*[f"sample-{i}" for i in range(1, 20)], "control-1"]))
+    sample_file.write_text(
+        "\n".join([*[f"sample-{i}" for i in range(1, 20)], "control-1"]), encoding="utf-8"
+    )
 
     result = CliRunner().invoke(
         wellshuffled,
@@ -228,6 +232,31 @@ def test_shuffle_reports_clean_error_for_a_well_outside_the_plate(tmp_path):
     assert result.exit_code == 2
     assert "Max well is AF48" in result.output
     assert "Traceback" not in result.output
+
+
+def test_shuffle_and_trace_round_trip_a_non_ascii_sample_id(tmp_path):
+    """A sample ID outside ASCII survives the whole shuffle-then-trace round trip."""
+    sample_file = tmp_path / "samples.txt"
+    unicode_ids = [f"caf{chr(0xE9)}-{i}" for i in range(1, 76)]
+    sample_file.write_text("\n".join(unicode_ids), encoding="utf-8")
+    plate_map = tmp_path / "plate_map.csv"
+    trace_csv = tmp_path / "trace.csv"
+
+    shuffled = CliRunner().invoke(
+        wellshuffled,
+        ["shuffle", str(sample_file), str(plate_map), "--seed", "1"],
+    )
+    assert shuffled.exit_code == 0, shuffled.output
+
+    traced = CliRunner().invoke(
+        wellshuffled, ["trace", str(plate_map), "--output-csv", str(trace_csv)]
+    )
+    assert traced.exit_code == 0, traced.output
+
+    traced_ids = {
+        line.split(",")[0] for line in trace_csv.read_text(encoding="utf-8").splitlines()[1:]
+    }
+    assert set(unicode_ids) <= traced_ids
 
 
 def test_shuffle_reports_clean_error_when_samples_exceed_plate(oversized_sample_file, tmp_path):

@@ -250,7 +250,9 @@ def load_control_map_from_csv(filename: str) -> dict[str, str]:
     # The map is temporarily stored as {Well: Sample ID} string-to-string
     control_map = {}
 
-    with open(filename, "r", newline="") as csv_file:
+    # Encoding is explicit: without it, reading depends on the platform locale and a
+    # UTF-8 file read on Windows would decode as cp1252 and silently mangle sample IDs.
+    with open(filename, "r", newline="", encoding="utf-8") as csv_file:
         # Use csv.reader to handle different delimiters/quoting if needed
         reader = csv.reader(csv_file)
 
@@ -319,7 +321,7 @@ def load_sample_ids(
     initial_position_map = {}
     has_initial_position_map = False
 
-    with open(filename, "r", newline="") as csv_file:
+    with open(filename, "r", newline="", encoding="utf-8") as csv_file:
         reader = csv.reader(csv_file)
         for _, row in enumerate(reader):
             if not row:
@@ -376,7 +378,7 @@ def save_all_plates_to_single_csv(all_plates: list[np.ndarray], filename: str):
     filename : str
         The name of the output CSV file.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         for i, plate in enumerate(all_plates):
             if i > 0:
                 f.write("\n")
