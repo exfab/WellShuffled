@@ -7,6 +7,7 @@ import click
 import numpy as np
 
 from wellshuffled.utilities import (
+    row_index_to_letters,
     well_to_index,
 )
 
@@ -184,7 +185,7 @@ class BasePlateMapper(ABC):
         if self.is_control_map_fixed:
             for (r, c), sample_id in self.fixed_control_map.items():
                 # Convert (r, c) back to well position string
-                well = f"{chr(ord('A') + r)}{c + 1}"
+                well = f"{row_index_to_letters(r)}{c + 1}"
                 merged_map[well] = sample_id
 
         for well, sample_id in merged_map.items():

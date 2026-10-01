@@ -7,6 +7,69 @@ import click
 import numpy as np
 
 
+def letters_to_row_index(letters: str) -> int:
+    """Convert a row label into its 0-based row index.
+
+    Rows are labelled alphabetically and continue into multiple letters beyond 'Z',
+    matching 1536-well plates where row 27 is 'AA' (e.g. 'A'..'Z', 'AA'..'AF').
+
+    Parameters
+    ----------
+    letters : str
+        The row label (e.g., 'A', 'H', 'AA', 'AF'). Case-insensitive.
+
+    Returns
+    -------
+    int
+        The 0-based row index (e.g., 0, 7, 26, 31).
+
+    Raises
+    ------
+    ValueError
+        If the label is empty or contains anything other than ASCII letters A-Z.
+    """
+    # isalpha() alone accepts any Unicode letter, so restrict to ASCII A-Z.
+    if not letters or not (letters.isascii() and letters.isalpha()):
+        raise ValueError(f"Invalid row label: '{letters}'. Expected letters A-Z only.")
+
+    index = 0
+    for letter in letters.upper():
+        index = index * 26 + (ord(letter) - ord("A") + 1)
+    return index - 1
+
+
+def row_index_to_letters(row_index: int) -> str:
+    """Convert a 0-based row index into its row label.
+
+    Rows are labelled alphabetically and continue into multiple letters beyond 'Z',
+    matching 1536-well plates where row 27 is 'AA' (e.g. 'A'..'Z', 'AA'..'AF').
+
+    Parameters
+    ----------
+    row_index : int
+        The 0-based row index (e.g., 0, 7, 26, 31).
+
+    Returns
+    -------
+    str
+        The row label (e.g., 'A', 'H', 'AA', 'AF').
+
+    Raises
+    ------
+    ValueError
+        If the row index is negative.
+    """
+    if row_index < 0:
+        raise ValueError(f"Invalid row index: {row_index}. Must be non-negative.")
+
+    letters = ""
+    index = row_index + 1
+    while index > 0:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
 def convert_well_number_to_position(well_number: int, plate_dims: tuple[int, int]) -> str:
     """Convert a 1-based column-major well number to an alphanumeric well position.
 
@@ -34,7 +97,7 @@ def convert_well_number_to_position(well_number: int, plate_dims: tuple[int, int
     col_index = (well_number - 1) // rows
     row_index = (well_number - 1) % rows
 
-    row_letter = chr(ord("A") + row_index)
+    row_letter = row_index_to_letters(row_index)
     col_number = col_index + 1
 
     return f"{row_letter}{col_number}"
@@ -65,26 +128,26 @@ def well_to_index(well: str, plate_dims: tuple[int, int]) -> tuple[int, int]:
     if well.isdigit():
         well = convert_well_number_to_position(int(well), plate_dims)
 
-    # Well must be at least two characters (Row letter + Col number)
-    if len(well) < 2:
+    # Split the leading row label from the trailing column number. Rows may span
+    # multiple letters (e.g. 'AA1'), so match a run of letters rather than one char.
+    # Character classes are explicit ASCII so non-ASCII digits are rejected too (\d
+    # would otherwise accept e.g. Arabic-Indic digits, which int() also accepts).
+    match = re.match(r"^([A-Za-z]+)([0-9]+)$", well)
+    if not match:
         raise ValueError(f"Invalid well designation: {well}")
 
     # Determine row index
-    row_letter = well[0].upper()
-    row_index = ord(row_letter) - ord("A")
+    row_index = letters_to_row_index(match.group(1))
 
     # Determine column index
-    try:
-        col_number = int(well[1:])
-        col_index = col_number - 1
-    except ValueError as e:
-        raise ValueError(f"Invalid column number in well designation: {well}") from e
+    col_index = int(match.group(2)) - 1
 
     # Validation
     if not (0 <= row_index < rows and 0 <= col_index < cols):
-        max_row_letter = chr(ord("A") + rows - 1)
+        max_row_letter = row_index_to_letters(rows - 1)
         raise ValueError(
-            f"Well {well} is outside plate dimensions ({rows}x{cols}). Max well is {max_row_letter}."
+            f"Well {well} is outside plate dimensions ({rows}x{cols}). "
+            f"Max well is {max_row_letter}{cols}."
         )
 
     return row_index, col_index
@@ -111,28 +174,32 @@ def convert_position_to_well_number(well_position: str, plate_dims: tuple[int, i
         If the well position is invalid or out of bounds.
     """
     rows, cols = plate_dims
-    well_position = str(well_position).upper()
+    raw_position = str(well_position)
 
-    # Use re.match for robust parsing: [Letter][Number+]
-    match = re.match(r"^([A-Z])(\d+)$", well_position)
+    # Match before upper-casing: Unicode case-mapping can turn non-ASCII letters into
+    # ASCII ones (e.g. 'ß' -> 'SS', 'ı' -> 'I'), which would otherwise be silently
+    # accepted as a multi-letter row. Character classes are explicit ASCII so that
+    # non-ASCII digits are rejected as well.
+    match = re.match(r"^([A-Za-z]+)([0-9]+)$", raw_position)
+    well_position = raw_position.upper()
 
     if not match:
-        if well_position.isdigit():
-            # If input is already numeric, return it (useful if fixed map used numbers)
+        # If input is already numeric, return it (useful if fixed map used numbers).
+        # isdigit() alone also accepts non-ASCII digits, so require ASCII here too.
+        if raw_position.isascii() and raw_position.isdigit():
             return well_position
         raise ValueError(f"Invalid well position format: '{well_position}'")
 
-    # Correctly parse the row letter and column string
     row_letter = match.group(1)
     col_str = match.group(2)
 
     num_rows, num_cols = rows, cols
 
-    row_index = ord(row_letter) - ord("A")
+    row_index = letters_to_row_index(row_letter)
     col_index = int(col_str) - 1
 
     if not (0 <= row_index < num_rows and 0 <= col_index < num_cols):
-        max_row_letter = chr(ord("A") + num_rows - 1)
+        max_row_letter = row_index_to_letters(num_rows - 1)
         raise ValueError(
             f"Well {well_position} is outside plate dimensions ({num_rows}x{num_cols}). Max well is {max_row_letter}{num_cols}."
         )
