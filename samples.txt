@@ -1,4 +1,0 @@
-SampleA
-SampleB
-SampleC
-SampleD
