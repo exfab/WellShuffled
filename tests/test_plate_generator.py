@@ -44,7 +44,7 @@ def set_random_seed():
 def sample_file_path(tmp_path):
     """Create a temporary sample file for testing load_sample_ids."""
     p = tmp_path / "samples.txt"
-    p.write_text(SAMPLE_FILE_CONTENT)
+    p.write_text(SAMPLE_FILE_CONTENT, encoding="utf-8")
     return str(p)
 
 
