@@ -120,7 +120,7 @@ class BasePlateMapper(ABC):
         self.used_edge_samples: set[str] = set()
         self.multi_edge_samples: list[list[str]] = []
 
-        # Put both well maps into one standard form now that the plate size is known.
+        # Put both well maps into one standard form, which requires the plate size.
         # A well can be spelled several ways (1, A1, A01, a1 all name the same well), so
         # comparing the raw keys would report false conflicts and silently drop samples.
         self.initial_position_map = self._standardize_wells(self.initial_position_map)

@@ -19,7 +19,7 @@ def oversized_sample_file(tmp_path):
 def test_shuffle_and_trace_support_a_plate_with_more_than_26_rows(tmp_path):
     """Trace labels every row of a full 32-row plate A..Z then AA..AF."""
     sample_file = tmp_path / "samples.txt"
-    # Fill every well so every row label is guaranteed to appear, independent of the seed.
+    # Filling every well makes the expected set of row labels seed-independent.
     sample_file.write_text("\n".join(f"sample-{i + 1}" for i in range(32 * 48)))
     plate_map = tmp_path / "plate_map.csv"
     trace_csv = tmp_path / "trace.csv"
@@ -81,8 +81,8 @@ def test_shuffle_reports_clean_error_for_a_duplicate_well_in_the_sample_file(tmp
 def test_shuffle_rejects_non_ascii_well_in_sample_file(tmp_path, well):
     """A sample-file well that Unicode upper-casing would turn into a real well (ı1 -> I1) is rejected.
 
-    The 20-row plate makes both I1 and S1 (from ſ1) real wells, so rejection must come
-    from the non-ASCII input itself rather than an out-of-bounds row.
+    A 20-row plate makes both I1 and S1 (from ſ1) real wells, so rejection indicates the
+    non-ASCII input rather than an out-of-bounds row.
     """
     sample_file = tmp_path / "samples.csv"
     sample_file.write_text(f"sample-1,{well}\nsample-2,A2")
@@ -177,7 +177,6 @@ def test_shuffle_reports_conflict_between_sample_file_and_fixed_map_across_spell
         ],
     )
 
-    # Today this exits 0 and Plate 1 has control-1 in A1 with sampleX nowhere on it.
     assert result.exit_code == 2, result.output
     assert "different" in result.output
     assert not out.exists()
