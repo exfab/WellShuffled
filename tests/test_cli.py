@@ -182,6 +182,42 @@ def test_shuffle_reports_conflict_between_sample_file_and_fixed_map_across_spell
     assert not out.exists()
 
 
+def test_shuffle_accepts_both_spellings_of_nonstandard_dims(tmp_path):
+    """The dimensions flag works with a hyphen, and the original underscore spelling still works."""
+    results = {}
+    for flag in ("--nonstandard-dims", "--nonstandard_dims"):
+        sample_file = tmp_path / f"samples{flag}.txt"
+        sample_file.write_text("\n".join(f"sample-{i}" for i in range(1, 61)), encoding="utf-8")
+        out = tmp_path / f"plate{flag}.csv"
+
+        result = CliRunner().invoke(
+            wellshuffled,
+            [
+                "shuffle",
+                str(sample_file),
+                str(out),
+                "--nonstandard",
+                flag,
+                "6,10",
+                "--seed",
+                "1",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        grid = [
+            line
+            for line in out.read_text(encoding="utf-8").splitlines()
+            if not line.startswith("Plate")
+        ]
+        assert len(grid) == 6 and len(grid[0].split(",")) == 10
+        results[flag] = out.read_text(encoding="utf-8")
+
+    # Both spellings must produce identical output for the same seed.
+    assert results["--nonstandard-dims"] == results["--nonstandard_dims"]
+
+
 def test_shuffle_accepts_a_mixed_case_control_in_the_fixed_map(tmp_path):
     """A fixed map may name a control in any case once the prefix matches ignoring case."""
     sample_file = tmp_path / "samples.txt"

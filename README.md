@@ -93,12 +93,13 @@ wellshuffled shuffle <sample_file> <output_path> [OPTIONS]
   "A1:control-85,H12:control-96").
 - `--fixed-map-file`: Manually specify fixed control locations from a CSV file.
 - `--nonstandard`: Allow for the use of non-standard plate dimensions.
-- `--nonstandard_dims`: The dimensions (x, y) for the nonstandard plate.
+- `--nonstandard-dims`, `--nonstandard_dims`: The dimensions (x, y) for the
+  nonstandard plate. Both spellings are accepted.
 
 Plates with more than 26 rows are supported, and follow the convention used by
 1536-well plates: rows are labelled `A` through `Z`, then continue with multiple
 letters, so row 27 is `AA`, row 28 is `AB`, and so on. For example, a 1536-well
-plate is given as `--nonstandard_dims 32,48`, and its wells are labelled from
+plate is given as `--nonstandard-dims 32,48`, and its wells are labelled from
 `A1` through `AF48`.
 
 ### `trace` Command
@@ -162,10 +163,10 @@ wellshuffled shuffle example_files/samples_with_positions.csv predefined_layout.
 
 **7. Provide Nonstandard plate dimensions:** We use the `--nonstandard` flag to
 ensure you are explicitly meaning to pass in nonstandard plate dimensions along
-with the `--nonstandard_dims=[RowsxColumns] or [Rows,Columns]`
+with the `--nonstandard-dims=[RowsxColumns] or [Rows,Columns]`
 
 ```
-wellshuffled shuffle example_files/60_samples_w_controls_initial_pos.csv nonstandard_layout.csv --nonstandard --nonstandard_dims=6,10
+wellshuffled shuffle example_files/60_samples_w_controls_initial_pos.csv nonstandard_layout.csv --nonstandard --nonstandard-dims=6,10
 ```
 
 **8. View all available options and help:**

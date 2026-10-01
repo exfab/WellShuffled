@@ -213,7 +213,9 @@ def wellshuffled():
     help="A flag to allow for the use of non-standard plate dimensions (not 48, 96, 384, etc)",
 )
 @click.option(
+    "--nonstandard-dims",
     "--nonstandard_dims",
+    "nonstandard_dims",
     default=None,
     callback=parse_dimensions,
     help="The dimensions (x, y) for the nonstandard plate",
