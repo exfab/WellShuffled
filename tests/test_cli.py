@@ -182,6 +182,33 @@ def test_shuffle_reports_conflict_between_sample_file_and_fixed_map_across_spell
     assert not out.exists()
 
 
+def test_shuffle_accepts_a_mixed_case_control_in_the_fixed_map(tmp_path):
+    """A fixed map may name a control in any case once the prefix matches ignoring case."""
+    sample_file = tmp_path / "samples.txt"
+    sample_file.write_text(
+        "\n".join([*[f"sample-{i}" for i in range(1, 80)], "CONTROL-2"]), encoding="utf-8"
+    )
+    out = tmp_path / "out.csv"
+
+    result = CliRunner().invoke(
+        wellshuffled,
+        [
+            "shuffle",
+            str(sample_file),
+            str(out),
+            "--control-prefix",
+            "control-",
+            "--fixed-map",
+            "A1:CONTROL-2",
+            "--seed",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "CONTROL-2" in out.read_text(encoding="utf-8")
+
+
 def test_shuffle_reports_clean_error_for_a_non_control_in_the_fixed_map(tmp_path):
     """A fixed map naming a sample that is not a control reports a usage error, not a traceback."""
     sample_file = tmp_path / "samples.txt"
