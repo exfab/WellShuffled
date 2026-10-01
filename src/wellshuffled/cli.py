@@ -191,7 +191,8 @@ def wellshuffled():
 @click.option(
     "--control-prefix",
     default=None,
-    help="Prefix used to identify control/blank samples in SAMPLE_FILE (e.g., 'B', 'CTRL').",
+    help="Prefix used to identify control/blank samples in SAMPLE_FILE (e.g., 'B', 'CTRL'). "
+    "Matched ignoring case.",
 )
 @click.option(
     "--fixed-map",

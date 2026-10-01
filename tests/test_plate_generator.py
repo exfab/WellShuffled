@@ -73,6 +73,51 @@ def get_control_positions(plate: np.ndarray, control_ids: list[str]) -> dict[tup
 # --- Test Cases ---
 
 
+def test_load_sample_ids_ignores_case_when_matching_the_control_prefix(tmp_path):
+    """Test that the control prefix matches sample IDs regardless of case."""
+    p = tmp_path / "mixed_case_samples.txt"
+    p.write_text("\n".join(["control-1", "CONTROL-2", "Control-3", "cOnTrOl-4", "sample-1"]))
+
+    variable, control, _ = load_sample_ids(str(p), control_prefix="control-")
+
+    assert control == ["control-1", "CONTROL-2", "Control-3", "cOnTrOl-4"]
+    assert variable == ["sample-1"]
+
+
+def test_mixed_case_controls_are_frozen_across_plates(tmp_path):
+    """Test that controls differing only by case are all recognized and held fixed."""
+    p = tmp_path / "mixed_case_samples.txt"
+    ids = [f"sample-{i}" for i in range(1, 80)]
+    controls = ["control-1", "CONTROL-2", "Control-3"]
+    p.write_text("\n".join([*ids, *controls]))
+
+    variable, control, _ = load_sample_ids(str(p), control_prefix="control-")
+    mapper = PlateMapperSimple(variable, control, plate_size=96)
+
+    plate1 = mapper.generate_plate()
+    plate2 = mapper.generate_plate()
+
+    def control_positions(plate):
+        """Return the (row, col) of each control on the plate."""
+        return {(r, c): plate[r, c] for r in range(8) for c in range(12) if plate[r, c] in controls}
+
+    assert control_positions(plate1) == control_positions(plate2)
+    assert set(control_positions(plate1).values()) == set(controls)
+
+
+def test_fixed_map_accepts_a_mixed_case_control():
+    """Test that a fixed map may name a control whose case differs from the prefix."""
+    mapper = PlateMapperSimple(
+        ["sample-1"],
+        ["CONTROL-2"],
+        plate_size=96,
+        predefined_control_map={"A1": "CONTROL-2"},
+    )
+
+    plate = mapper.generate_multiple_plates(1)[0]
+    assert plate[0, 0] == "CONTROL-2"
+
+
 def test_load_sample_ids(sample_file_path):
     """Test that sample loading correctly separates variable and control samples."""
     # FIX: Use tmp_path fixture for file access, resolving the TypeError
