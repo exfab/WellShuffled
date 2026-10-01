@@ -87,7 +87,8 @@ wellshuffled shuffle <sample_file> <output_path> [OPTIONS]
 - `--simple`: Use simple randomization (disables neighbor-awareness).
 - `--separate-files`: Save each plate map to a separate CSV file.
 - `--seed`: Set the random seed for reproducible results.
-- `--control-prefix`: Prefix used to identify control samples.
+- `--control-prefix`: Prefix used to identify control samples. Matched ignoring
+  case, so `control-` also matches `CONTROL-2` and `Control-3`.
 - `--fixed-map`: Manually specify fixed control locations (e.g.,
   "A1:control-85,H12:control-96").
 - `--fixed-map-file`: Manually specify fixed control locations from a CSV file.

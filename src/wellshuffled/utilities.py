@@ -331,8 +331,10 @@ def load_sample_ids(
             if not sample_id:
                 continue
 
-            # Check if the sample row is a control or normal sample
-            if control_prefix and sample_id.startswith(control_prefix):
+            # Check if the sample row is a control or normal sample. The prefix is
+            # matched case-insensitively; sample IDs themselves are left unchanged so
+            # that later comparisons against control_samples match verbatim.
+            if control_prefix and sample_id.casefold().startswith(control_prefix.casefold()):
                 control_samples.append(sample_id)
             else:
                 all_samples.append(sample_id)
