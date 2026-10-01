@@ -6,7 +6,13 @@ import numpy as np
 import pytest
 
 from wellshuffled.plate_generator import PlateMapperNeighborAware, PlateMapperSimple
-from wellshuffled.utilities import load_sample_ids, well_to_index
+from wellshuffled.utilities import (
+    convert_position_to_well_number,
+    convert_well_number_to_position,
+    letters_to_row_index,
+    load_sample_ids,
+    well_to_index,
+)
 
 # --- Test Data ---
 
@@ -92,6 +98,57 @@ def test_well_to_index():
         well_to_index("A13", (8, 12))  # Out of bounds column
     with pytest.raises(ValueError):
         well_to_index("I1", (8, 12))  # Out of bounds row
+
+
+def test_well_to_index_supports_multi_letter_rows():
+    """Test that rows beyond Z use multiple letters, as on 1536-well plates."""
+    assert well_to_index("AA1", (32, 48)) == (26, 0)
+    assert well_to_index("AF48", (32, 48)) == (31, 47)
+
+
+@pytest.mark.parametrize("label", ["é", "ß", "Ω", "ａ", "Æ"])
+def test_letters_to_row_index_rejects_non_ascii_letters(label):
+    """Test that row labels outside A-Z are rejected rather than silently mis-mapped."""
+    with pytest.raises(ValueError, match="Expected letters A-Z only"):
+        letters_to_row_index(label)
+
+
+@pytest.mark.parametrize("well", ["ı1", "ſ1", "A１", "A٢", "ß1", "ﬀ1", "é1", "É1"])
+def test_well_designations_reject_non_ascii_input(well):
+    """Test that well designations containing non-ASCII letters or digits are rejected."""
+    with pytest.raises(ValueError):
+        well_to_index(well, (700, 50))
+
+
+@pytest.mark.parametrize("position", ["ß1", "ﬀ1", "ı1", "ſ1", "é1", "A１", "٢٧"])
+def test_numeric_well_conversion_rejects_non_ascii_input(position):
+    """Test that numeric well conversion rejects input Unicode case-mapping could reshape."""
+    with pytest.raises(ValueError):
+        convert_position_to_well_number(position, (700, 50))
+
+
+def test_numeric_well_conversion_still_passes_through_ascii_numbers():
+    """Test that an already-numeric well designation is returned unchanged."""
+    assert convert_position_to_well_number("27", (32, 48)) == "27"
+    assert convert_position_to_well_number("1536", (32, 48)) == "1536"
+
+
+def test_convert_position_to_well_number_supports_multi_letter_rows():
+    """Test that numeric well conversion accepts multi-letter rows for trace --numeric."""
+    assert convert_position_to_well_number("AA1", (32, 48)) == "27"
+    assert convert_position_to_well_number("AF48", (32, 48)) == "1536"
+
+
+def test_out_of_bounds_error_names_a_real_well():
+    """Test that the out-of-bounds error names a valid well rather than a punctuation character."""
+    with pytest.raises(ValueError, match=r"Max well is AD4\."):
+        well_to_index("Z50", (30, 4))
+
+
+def test_well_number_to_position_supports_multi_letter_rows():
+    """Test that well numbers past row Z convert to multi-letter well positions."""
+    assert convert_well_number_to_position(27, (32, 48)) == "AA1"
+    assert convert_well_number_to_position(32 * 48, (32, 48)) == "AF48"
 
 
 def test_simple_mapper_plate_generation_basic():
@@ -201,6 +258,29 @@ def test_neighbor_aware_mapper_neighbor_tracking():
 
     # The number of unique pairs should be significantly higher than 172
     assert len(mapper_p2.neighbor_pairs) > 172
+
+
+def test_initial_positions_accept_multi_letter_wells():
+    """Test that an initial position map can address rows beyond Z."""
+    initial_position_map = {
+        "AA1": "sample-1",
+        "AB2": "sample-2",
+        "Z1": "sample-3",
+    }
+    mapper = PlateMapperSimple(
+        [f"sample-{i + 1}" for i in range(3)],
+        [],
+        plate_size=1536,
+        nonstandard=True,
+        nonstandard_dims=(32, 48),
+        initial_position_map=initial_position_map,
+    )
+
+    plate = mapper.generate_multiple_plates(1)[0]
+
+    assert plate[26, 0] == "sample-1"
+    assert plate[27, 1] == "sample-2"
+    assert plate[25, 0] == "sample-3"
 
 
 def test_conflicting_maps():

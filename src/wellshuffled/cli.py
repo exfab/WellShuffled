@@ -11,6 +11,7 @@ from wellshuffled.utilities import (
     convert_position_to_well_number,
     load_control_map_from_csv,
     load_sample_ids,
+    row_index_to_letters,
     save_all_plates_to_single_csv,
     save_plate_to_csv,
 )
@@ -247,36 +248,45 @@ def shuffle(
     else:
         plate_size = int(size)
 
-    # Load samples
-    samples, control_samples, initial_position_map = load_sample_ids(
-        sample_file, control_prefix=control_prefix
-    )
-
-    total_samples = len(samples) + len(control_samples)
-    click.echo(f"Loaded {total_samples} total samples from {os.path.basename(sample_file)}.")
-    click.echo(f"  - {len(samples)} variable samples to randomize.")
-    if control_prefix:
-        click.echo(
-            f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}')."
+    # Every ValueError raised below validates user-supplied input, so surface it as a
+    # usage error rather than letting a traceback escape to the shell.
+    try:
+        # Load samples
+        samples, control_samples, initial_position_map = load_sample_ids(
+            sample_file, control_prefix=control_prefix
         )
 
-    # Log that we are using the input well positions for the first plate, don't need to do anything else.
-    if initial_position_map:
-        click.echo("Sample file contains initial plate positions, using it for Plate 1.")
+        total_samples = len(samples) + len(control_samples)
+        click.echo(f"Loaded {total_samples} total samples from {os.path.basename(sample_file)}.")
+        click.echo(f"  - {len(samples)} variable samples to randomize.")
+        if control_prefix:
+            click.echo(
+                f"  - {len(control_samples)} control samples with fixed positions (Prefix: '{control_prefix}')."
+            )
 
-    # Identify if we have a fixed control map (either as input text or a file.)
-    if fixed_map or fixed_map_file:
-        click.echo(
-            "Using MANUALLY DEFINED control map. Skipping Plate 1 randomization for controls."
-        )
-        if fixed_map_file:
-            fixed_map = fixed_map_file
+        # Log that we are using the input well positions for the first plate, don't need to do anything else.
+        if initial_position_map:
+            click.echo("Sample file contains initial plate positions, using it for Plate 1.")
 
-    # Choose the correct mapper class
-    mapper: PlateMapperSimple | PlateMapperNeighborAware
-    if simple:
-        click.echo("Using simple randomization logic, minimizing repeated samples on the edge.")
-        mapper = PlateMapperSimple(
+        # Identify if we have a fixed control map (either as input text or a file.)
+        if fixed_map or fixed_map_file:
+            click.echo(
+                "Using MANUALLY DEFINED control map. Skipping Plate 1 randomization for controls."
+            )
+            if fixed_map_file:
+                fixed_map = fixed_map_file
+
+        # Choose the correct mapper class
+        if simple:
+            click.echo("Using simple randomization logic, minimizing repeated samples on the edge.")
+            mapper_class: type[PlateMapperSimple | PlateMapperNeighborAware] = PlateMapperSimple
+        else:
+            click.echo(
+                "Using neighbor-aware randomization logic, minimizing repeated samples on the edge and repeated sample neighbors."
+            )
+            mapper_class = PlateMapperNeighborAware
+
+        mapper = mapper_class(
             samples,
             control_samples,
             plate_size=plate_size,
@@ -285,23 +295,12 @@ def shuffle(
             nonstandard_dims=nonstandard_dims,
             initial_position_map=initial_position_map,
         )
-    else:
-        click.echo(
-            "Using neighbor-aware randomization logic, minimizing repeated samples on the edge and repeated sample neighbors."
-        )
-        mapper = PlateMapperNeighborAware(
-            samples,
-            control_samples,
-            plate_size=plate_size,
-            predefined_control_map=fixed_map,
-            nonstandard=nonstandard,
-            nonstandard_dims=nonstandard_dims,
-            initial_position_map=initial_position_map,
-        )
 
-    # Generate plates
-    click.echo(f"Generating {plates} plate(s) of size {plate_size}...")
-    all_plates = mapper.generate_multiple_plates(num_plates=plates)
+        # Generate plates
+        click.echo(f"Generating {plates} plate(s) of size {plate_size}...")
+        all_plates = mapper.generate_multiple_plates(num_plates=plates)
+    except ValueError as e:
+        raise click.BadParameter(str(e)) from e
 
     # Save output
     if separate_files:
@@ -359,7 +358,7 @@ def _process_plate_data(
         for c, sample_id in enumerate(row_data):
             if sample_id and sample_id != "None":
                 # Convert 0-indexed (r, c) to standard well position (e.g., (0, 0) -> A1)
-                row_letter = chr(ord("A") + r)
+                row_letter = row_index_to_letters(r)
                 col_number = c + 1
                 well_pos_alpha = f"{row_letter}{col_number}"
 

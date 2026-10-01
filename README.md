@@ -94,6 +94,12 @@ wellshuffled shuffle <sample_file> <output_path> [OPTIONS]
 - `--nonstandard`: Allow for the use of non-standard plate dimensions.
 - `--nonstandard_dims`: The dimensions (x, y) for the nonstandard plate.
 
+Plates with more than 26 rows are supported, and follow the convention used by
+1536-well plates: rows are labelled `A` through `Z`, then continue with multiple
+letters, so row 27 is `AA`, row 28 is `AB`, and so on. For example, a 1536-well
+plate is given as `--nonstandard_dims 32,48`, and its wells are labelled from
+`A1` through `AF48`.
+
 ### `trace` Command
 
 The `trace` command traces the locations of samples across multiple plates.
